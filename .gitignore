@@ -35,3 +35,14 @@ nltk_data/
 outputs/*/parser_outputs/docling_run/
 outputs/*/parser_outputs/marker_run/
 outputs/*/parser_outputs/mineru_run_txt/
+
+# JupyterHub/user environment files
+.conda/
+.gradle/
+.ipython/
+.jupyter/
+.local/
+.nv/
+.pdfbox.cache
+.wget-hsts
+.gitconfig
