@@ -1,0 +1,10 @@
+document,parser,status,chars,runtime_seconds,type,requires,error,output_path
+cse195_research_paper.pdf,pymupdf,success,19383,0.01,flat_text,,,/home/jovyan/outputs/cse195_research_paper/parser_outputs/pymupdf.txt
+cse195_research_paper.pdf,pdfplumber,success,18082,0.17,flat_text,,,/home/jovyan/outputs/cse195_research_paper/parser_outputs/pdfplumber.txt
+cse195_research_paper.pdf,pypdf,success,19359,0.04,flat_text,,,/home/jovyan/outputs/cse195_research_paper/parser_outputs/pypdf.txt
+cse195_research_paper.pdf,tika,success,20565,0.01,semi_structured,"tika, java",,/home/jovyan/outputs/cse195_research_paper/parser_outputs/tika.txt
+cse195_research_paper.pdf,unstructured,success,21098,0.36,structure_aware,unstructured,,/home/jovyan/outputs/cse195_research_paper/parser_outputs/unstructured.txt
+cse195_research_paper.pdf,docling,success,20804,2.29,structure_aware,docling,,/home/jovyan/outputs/cse195_research_paper/parser_outputs/docling.txt
+cse195_research_paper.pdf,marker,success,21160,15.87,structure_aware,marker-pdf,,/home/jovyan/outputs/cse195_research_paper/parser_outputs/marker.txt
+cse195_research_paper.pdf,mineru,success,20607,26.45,structure_aware,mineru CLI,,/home/jovyan/outputs/cse195_research_paper/parser_outputs/mineru.txt
+cse195_research_paper.pdf,grobid,success,17448,1.21,structured_metadata,GROBID server at localhost:8070,,/home/jovyan/outputs/cse195_research_paper/parser_outputs/grobid.txt

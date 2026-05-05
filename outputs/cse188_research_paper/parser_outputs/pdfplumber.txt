@@ -1,0 +1,564 @@
+
+--- PAGE 1 ---
+Structure Matters: Evaluating Document Parsing Strategies for
+LLM-Based Retrieval Systems
+KrishSarkar
+UniversityofCalifornia,Merced
+krishsarkar@ucmerced.edu
+Abstract 2017;Devlinetal.,2019),particularlyinretrieval-
+augmentedgeneration(RAG)pipelineswhereex-
+Documentparsingisacriticalbutoftenover- ternaldocumentsareincorporatedtoimprovefac-
+lookedcomponentofLLM-basedretrievalsys-
+tualaccuracyandcontextualrelevance. Insuchsys-
+tems. While most prior work focuses on im-
+tems,unstructureddatasourcessuchasPDFsare
+provingembeddingmodelsandretrievalstrate-
+commonly ingested, processed, and transformed
+gies,thequalityofupstreamdocumentinges-
+into vector representations for semantic search.
+tioncansignificantlyinfluencedownstreamper-
+formance. Inthiswork,wesystematicallyeval- TheprojectfollowstheCSE188emphasisonLLM-
+uate multiple PDF parsing approaches, rang- relatedwork,experimentalrigor,appropriatemet-
+ingfromflattextextractiontostructure-aware ricchoice,erroranalysis,andACL-stylecommu-
+methods,tounderstandhowparsingqualityaf- nication(Wang,2026). Thesecriteriamotivatethe
+fectsdocumentrepresentation.
+paper’sfocusoncontrolledparsercomparisonand
+We implement a modular ingestion pipeline retrieval-oriented evaluation. More broadly, this
+andcompareparsersincludingPyMuPDF,pdf- workcanbeviewedasafocusedcontextengineer-
+plumber,PyPDF,ApacheTika,Unstructured, ingstudy: itexamineshowdifferentpreprocessing
+Docling,andMinerU.Ouranalysisrevealsthat
+choiceschangetheinformationpayloadavailable
+parsing quality exists on a spectrum: flat ex-
+toadownstreamretrievalsystem(Meietal.,2025).
+tractionmethodsintroducenoiseandlosestruc-
+A critical step in these pipelines is document
+turalinformation,whilestructure-awareparsers
+preservehierarchicalorganizationandseman- parsing, where raw PDF files are converted into
+ticboundaries. Furthermore,advancedparsers representationssuitablefordownstreamprocessing.
+suchasDoclingandMinerUretainstructured However,PDFsareinherentlycomplex,containing
+artifacts such as Markdown headings, table richstructuralinformationsuchassectionhierar-
+markup, image references, and extracted fig-
+chies,multi-columnlayouts,tables,figures,equa-
+ures,enablingmultimodal-readydocumentrep-
+tions, and metadata. Document parsing research
+resentations.
+emphasizesthatparsingshouldpreservestructural
+Our findings demonstrate that higher-fidelity relationships,semanticorganization,andmachine-
+parsingproducescleaner,morecoherentdoc-
+readablerepresentationssuchasMarkdown,JSON,
+umentsegmentsandbetterpreservesinforma-
+orXMLratherthanmerelytranscribingtext(Zhang
+tionnecessaryfordownstreamprocessing. In
+et al., 2024). Many commonly used parsing ap-
+theretrievalevaluation,PyMuPDFachievedthe
+proaches,suchasflattextextraction,discardthis
+highestaveragecosinesimilarity,butDocling
+producedthehighesthuman-ratedcoherence, structural information, resulting in noisy or frag-
+showingthatsimilarityscoresalonedonotfully mented text. These artifacts propagate through
+captureretrievalusefulness. Weconcludethat subsequentstages,affectingchunkingquality,em-
+investinginstructure-awareparsingisapracti-
+beddingrepresentations,andretrievedcontext.
+calandimpactfulwaytoimproveLLM-based
+Inthiswork,weinvestigatehowdifferentdocu-
+systems, even without modifying underlying
+mentparsingstrategiesimpactdownstreamrepre-
+models.
+sentationqualityinLLM-basedretrievalsystems.
+Wefocusontheingestionpipelineasafirst-class
+1 Introduction
+component of the system, rather than treating it
+Large Language Models (LLMs) have become as a trivial preprocessing step. Specifically, we
+central to modern NLP systems (Vaswani et al., comparearangeofparsingapproaches,including
+
+--- PAGE 2 ---
+flatextractorssuchasPyMuPDF,pdfplumber,and representationaffectstheformofthetextandmeta-
+PyPDF;semi-structuredextractionthroughApache data that later become chunks, embeddings, and
+Tika;andstructure-awaremethodssuchasUnstruc- retrievedcontext.
+tured,Docling,andMinerU.Weanalyzetheiref- Modernbenchmarksfurthershowthatdocument
+fectsondocumentrepresentation,chunkcoherence, parsingremainsanopenevaluationproblem. Om-
+retrievalusefulness,andmultimodalreadiness. niDocBencharguesthatdocumentcontentextrac-
+Throughempiricalandqualitativeanalysis,we tion supports the data needs of LLMs and RAG
+showthatstructure-awareparsingimprovestheco- systems,butthatexistingbenchmarksoftenhave
+herenceandsemanticintegrityofdocumentchunks. limiteddocumentcoverage,simplifiedevaluation
+In a small retrieval-based comparison, we find procedures,andinsufficientfine-grainedanalysis
+that cosine similarity alone does not fully cap- across content types (Ouyang et al., 2024). This
+tureretrievalquality: someflatextractionmethods motivatesevaluatingparsersnotonlybywhether
+achievecompetitivesimilarityscoreswhileproduc- theyextracttext,butalsobywhethertheypreserve
+inglesscoherentretrievedchunks. Wefurthershow usefulstructurefordownstreamsystems. Recent
+that these benefits come with tradeoffs in system workonmultimodaldocumentunderstandingfur-
+complexity,dependencymanagement,andruntime thersupportstheimportanceofstructure-awarein-
+performance. putrepresentations. Liuetal. showthatrawOCR
+Thecontributionsofthispaperareasfollows: (1) textcansometimesimpairmultimodalLLMdoc-
+weprovideasystematiccomparisonofdocument umentunderstandingbecauseitdiscardsstructure
+parsingstrategiesinthecontextofLLM-basedre- andproducesscatteredattention,whilestructured
+trievalpipelines;(2)weevaluatehowparsingqual- representationsbasedonaLATEX-likeformathelp
+ity affects chunk coherence and rank-1 retrieval preserve hierarchy and spatial relationships (Liu
+usefulness across representative queries; and (3) etal.,2025). Thisfindingalignswiththemotiva-
+wehighlighttheimportanceofstructure-awarein- tion of our work: parser outputs should be evalu-
+gestionasakeydesignconsiderationforbuilding atednotonlybytextcoverage,butalsobyhowwell
+reliableandeffectiveLLMsystems. theypreservestructurefordownstreamretrieval.
+2 RelatedWork 2.2 Retrieval-AugmentedGenerationand
+Chunking
+2.1 DocumentParsingandStructured
+Retrieval-augmented generation (RAG) systems
+Extraction
+extendlanguagemodelsbyretrievingrelevantex-
+Document parsing isthe process of transforming ternal documents or chunks at inference time. A
+unstructured or semi-structured documents into typical RAG pipeline includes ingestion, chunk-
+structured, machine-readable representations for ing,embedding,retrieval,andgeneration. Inthis
+downstreamapplicationssuchasknowledgebase setting, retrieval quality depends not only on the
+construction and retrieval-augmented generation embeddingmodelorsimilarityfunction,butalso
+(Zhangetal.,2024). UnliketraditionalOCR,which onthequalityofthedocumentrepresentationpro-
+primarily focuses on transcribing text, document ducedbeforeembedding.
+parsing aims to preserve structural relationships, Chunking is a key design choice in RAG
+semanticorganization,readingorder,andheteroge- pipelines. Prior RAG guidance emphasizes that
+neousdocumentelementssuchastables,formulas, small chunks may focus retrieval but risk frag-
+figures,andcharts(Zhangetal.,2024). mentingcontext,whilelargechunkspreservemore
+Recentdocumentparsingresearchdistinguishes context but may introduce noise (Chiang, 2024).
+between pipeline-based systems and end-to-end Boundary selection is also important: headings,
+vision-language approaches. Pipeline-based sys- paragraphs,lists,andtablesoftenrepresentmean-
+tems decompose parsing into stages such as lay- ingfulsemanticboundaries,sosplittingpurelyby
+out detection, OCR, table recognition, formula charactercountcanproducechunksthatbeginor
+recognition,andreading-orderrecovery,whileend- endinthemiddleofacoherentdocumentunit(Chi-
+to-end systems attempt to directly produce struc- ang, 2024). These concerns connect directly to
+turedoutputssuchasMarkdown,HTML,orLaTeX documentparsingbecauseastructure-awareparser
+(Ouyang et al., 2024). This distinction is impor- can expose headings, sections, tables, and figure
+tantforLLM-basedretrievalbecauseeachparser referencesthatachunkingstrategycanuse.
+
+--- PAGE 3 ---
+Course project guidance from the Scripto- ing step and begin evaluation only after text has
+rium/RefAIned ecosystem similarly emphasized alreadybeenextracted.
+that document ingestion and preprocessing lay Thisworkaddressesthatgapbycomparingmul-
+the foundation for accurate downstream genera- tiplePDFparsingstrategiesinsideacontrolledin-
+tion. Inparticular,theguidancehighlightedauto- gestionandretrievalpipeline. Byholdingchunk-
+mated loaders, chunking with overlap, metadata ing, embedding, and retrieval settings constant
+tagging,andhumanreviewasmechanismsforim- while varying parser output, we evaluate how ex-
+proving retrieval relevance, traceability, and de- tractionartifactsandstructuralpreservationaffect
+bugging(Pisman,2025). Retrievalqualityisalso chunkcoherence,rank-1retrievalusefulness,and
+sensitivetohowinformationisrepresentedbefore multimodalreadiness.
+retrieval. Zhu et al. identify a “lost-in-retrieval”
+3 Methodology
+probleminmulti-hopQA,wheremissingkeyenti-
+tiesdegraderetrieval,disruptthereasoningchain,
+Wedesignadocumentingestionpipelinethattrans-
+and lead to incorrect answers (Zhu et al., 2025).
+forms PDFs into structured representations suit-
+Althoughoursettingissingle-documentretrieval
+ablefordownstreamLLM-basedretrievalsystems.
+rather than multi-hop QA, the same principle ap-
+Unlike traditional pipelines that rely on flat text
+plies: upstream representation errors can prevent
+extraction,ourapproachexplicitlyevaluatesmulti-
+theretrieverfromsurfacingusefulcontext.
+pleparsingstrategiestounderstandhowstructural
+fidelityaffectsdownstreamprocessing.
+2.3 Tables,Figures,andMultimodal
+DocumentElements
+A major limitation of flat text extraction is that
+itoftencollapsestables, figures, and other visual
+elements into noisy text. This is especially prob-
+lematicforacademicpapers,wheretablesandfig-
+Figure1: Overviewofthedocumentingestionandre-
+ures often contain central experimental evidence.
+trievalevaluationpipeline.
+Structure-awaretoolsincreasinglysupporttheex-
+tractionofnon-textualelementsasexplicitartifacts.
+Forexample,Unstructureddocumentssupportfor 3.1 PipelineOverview
+extractingembeddedimagesandtablesfromPDFs
+As shown in Figure 1, the pipeline consists of
+asBase64-encodedelementsthatcanbedecoded
+four stages: parsing, chunking, embedding, and
+andviewedseparately(Unstructured,2026).
+retrieval. Inthiswork, wefocusprimarilyonthe
+Recent document parsing systems also empha-
+parsing stage, isolating its impact by holding the
+sizemultimodalandlayout-awarerepresentations.
+downstream chunking, embedding, and retrieval
+Uni-Parser,forexample,describesscientificPDF
+settingsconstant.
+parsing as a process of preserving fine-grained
+alignments across text, equations, tables, figures, 3.2 ParserImplementations
+and chemical structures, with outputs such as
+Weevaluatemultipleparsingapproachesundera
+JSON,Markdown,andHTMLintendedfordown-
+unifiedinterface:
+streamLLMapplications(Fangetal.,2025). While
+this paper does not build a full multimodal RAG • Flat text parsers: PyMuPDF, PyPDF, pdf-
+system,theparsercomparisonshowswhypreserv- plumber
+ingvisualandstructuralartifactsmattersforfuture
+• Semi-structuredparsers: ApacheTika
+retrievalpipelines.
+• Structure-awareparsers: Unstructured,Do-
+2.4 GapandContribution
+cling,MinerU,andrelatedmoderndocument
+Priorworkhasseparatelystudieddocumentpars-
+parsing systems (Unstructured, 2026; Fang
+ing, RAG pipelines, chunking, and retrieval eval-
+etal.,2025)
+uation. However,theinteractionbetweenparsing
+qualityandretrievalusefulnessremainsunderexam- Eachparserprocessesthesameinputdocument
+inedinpracticalstudent-builtLLMsystems. Many and produces outputs that vary in structural fi-
+pipelinesstilltreatparsingasasolvedpreprocess- delityandsemanticorganization. Inadditiontothe
+
+--- PAGE 4 ---
+parsersusedinthefinalretrievalcomparison,the 4 Experiments
+projectexploredseveraladditionaltools,including
+Wedesignourexperimentstoevaluatehowdiffer-
+GROBID,Marker,andNougat. Thesetoolswere
+entdocumentparsingstrategiesaffectdownstream
+usefulforevaluatingdifferencesininstallationcom-
+processinginanLLM-basedretrievalpipeline. By
+plexity, output format, structural fidelity, and in-
+holding all components of the pipeline constant
+tegrationdifficulty. However,becausesometools
+exceptfortheparsingstage,weisolatetheimpact
+requiredseparateenvironments,command-linerun-
+of parsing quality on chunking, embedding, and
+times,orexternalservices,thefinalretrievalcom-
+retrieval.
+parisonfocusesontheparserswithcompletesaved
+outputs. 4.1 Dataset
+We conduct the final retrieval experiment on an
+3.3 StructuredRepresentations
+IEEE-styleacademicPDF,theSLAM-LLMpaper,
+Structure-aware parsers produce outputs that go
+which contains multi-column formatting, section
+beyond plain text. Docling and MinerU generate
+hierarchies, tables, figures, and dense technical
+representationsthatinclude:
+content. This document provides a realistic test
+case for evaluating parsing robustness and struc-
+• Hierarchicaltextsuchastitles,sections,and
+turalpreservation.
+paragraphs
+Duringdevelopment,additionalparseroutputs
+• Markdownstructuresuchasheadings,links, and tooling experiments were explored, but the
+andtablemarkup reportedretrievalcomparisonusesthissinglerep-
+resentative paper to keep the parser comparison
+• Layout-awareinformationsuchasfigures,ta- controlledandreproducible.
+bles,andimagereferences
+4.2 ParsingMethodsCompared
+• Extracted visual elements, including tables
+WeevaluatearangeofcommonlyusedPDFpars-
+andfiguresasseparateartifacts
+ingtools:
+These representations enable downstream sys- • PyMuPDF:Alightweight,fastparserthatper-
+temstooperateonsemanticallymeaningfulunits formsflattextextractionwithminimalstruc-
+ratherthanarbitrarytextspans. turalawareness.
+3.4 EvaluationCriteria • pdfplumber: Atextextractiontoolwithbasic
+layouthandlingbutsubstantialsensitivityto
+Motivatedbyrecentworkarguingforcomprehen-
+multi-columnformatting.
+sive document parsing evaluation across layout
+categories,contenttypes,anddocumentattributes
+• PyPDF: A general-purpose PDF parser that
+(Ouyangetal.,2024),weevaluateparsingoutputs
+extracts raw text but may introduce spacing
+alongfourdimensions:
+artifacts.
+• Structural Fidelity: Preservation of docu- • ApacheTika: Adocumentextractionframe-
+menthierarchy workthatproducesreadabletextbutmayin-
+cludeblank-spaceandpage-headerartifacts.
+• Readability: Cleanliness and coherence of
+extractedtext • Unstructured: A structure-aware parsing
+frameworkthatidentifiesdocumentelements
+• Layout Fidelity: Preservation of tables, fig-
+suchasnarrativetext,titles,andlistitems.
+ures,andformatting
+• Docling: A structure-aware parser that pro-
+• Processing Efficiency: Runtime and com- ducesMarkdownoutputwithheadings,links,
+plexity imageplaceholders,andtablemarkup.
+Thisevaluationallowsustoanalyzehowparsing • MinerU:Astructureddocumentprocessing
+qualityinfluencestheoveralleffectivenessofLLM- tooldesignedtopreservelayout,semantichi-
+basedpipelines. erarchy,andvisualdocumentelements.
+
+--- PAGE 5 ---
+Thesemethodsspanaspectrumfromflatextrac- Parser Structure Readability Layout Speed
+pdfplumber Low Low Low Fast
+tiontostructure-awareparsing,enablingcompara-
+PyMuPDF Low Medium Low Fast
+tiveanalysisoftheireffectsondownstreamtasks. PyPDF Low Medium Low Fast
+Tika Medium Medium Low Medium
+4.3 ExperimentalSetup Unstructured High Medium Medium Slow
+Docling High High High Medium
+Foreachparser,weprocessthesameinputPDFand MinerU High High High Medium
+savetheextractedoutputasplaintextorMarkdown,
+Table1: Comparisonofparsingapproachesacrosseval-
+depending on the parser. These outputs are then
+uationdimensions.
+passedthroughaconsistentdownstreampipeline:
+• Chunking: Text is segmented into fixed-
+4.5 ChunkingandRepresentationAnalysis
+sizechunksofapproximately1200characters
+with200-characteroverlap. PriorRAGguid- We analyze how parsing affects chunk formation
+anceemphasizesthatchunksize,overlap,and by inspecting the resulting segments. In flat ex-
+boundary selection affect whether retrieved tractionmethods,chunkboundariesareoftenmis-
+informationremainsusefulorbecomesfrag- alignedwithsemanticunits,leadingtofragmented
+mented(Chiang,2024). or mixed-content chunks. In contrast, structure-
+aware parsing produces chunks that better corre-
+• Embedding: Eachchunkisencodedusingthe spondtologicalsectionsofthedocument.
+all-MiniLM-L6-v2 model, producing 384-
+dimensionalembeddings. 4.6 RetrievalEvaluation
+To assess downstream impact, we perform a
+• Retrieval: Queryembeddingsarecompared
+retrieval-basedevaluationusingrepresentativenat-
+againstchunkembeddingsusingcosinesim-
+urallanguagequeries. Foreachparsingmethod,we
+ilarity. For each query-parser pair, the top-
+retrievethetop-kmostsimilarchunksandevaluate:
+rankedchunkisinspectedandmanuallyrated
+forrelevanceandcoherence.
+• Relevance: whetherretrievedchunkscontain
+Thisstandardizedsetupholdschunking,embed- informationrelevanttothequery.
+ding, and retrieval settings constant so that ob-
+served differences can be attributed primarily to • Coherence: whether chunks form complete
+parseroutputquality. Theevaluationusesfiverep- andinterpretableunitsofmeaning.
+resentative queries about the SLAM-LLM paper
+andcomparesrank-1retrievalresultsacrossseven Examplequeriesincludequestionstargetingkey
+parseroutputs. aspectsofthedocument,suchasdefinitions,con-
+tributions,andsystemdescriptions.
+4.4 QualitativeEvaluationofParsing
+We first evaluate parsing outputs qualitatively by 4.7 ImplementationDetails
+examining:
+AllexperimentsareconductedusingPython-based
+tooling. Parsingisperformedusingtherespective
+• Structure preservation: whether section
+librariesforeachmethod,whileembeddinggener-
+headings and document hierarchy are main-
+ationishandledthroughtheSentenceTransformers
+tained.
+framework. Thesystemisexecutedonalocalenvi-
+• Textintegrity: whetherwordsandsentences ronment,andallmethodsareappliedtoidentical
+are extracted without corruption or merging inputdocumentstoensureconsistency.
+artifacts.
+5 Results
+• Noiselevels: presenceofheaders,footers,or
+irrelevantcontent. Wecomparemultipledocumentparsingstrategies
+basedonstructuralpreservation,readability,layout
+These factors directly influence the quality of fidelity,andprocessingspeed. Table1summarizes
+chunkedtextandsubsequentembeddings. thequalitativecomparisonacrossparsers.
+
+--- PAGE 6 ---
+5.1 TextQualityandStructuralPreservation
+Flatextractionmethodsfrequentlyproducenoisy
+outputs, including merged tokens, broken spac-
+ing, and loss of document hierarchy. For exam-
+ple,pdfplumberproducedartifactssuchas“JOUR-
+NALOFLATEXCLASSFILES,VOL.14,NO.8”and
+mergedwords,whilePyPDFintroducedspacingar-
+tifactssuchasseparatedlettersinheadings. These
+artifactsdegradereadabilityanddisruptsemantic
+segmentation.
+In contrast, structure-aware parsers preserve
+more logical organization. Unstructured labels
+Figure 2: Representative visual artifacts extracted by
+elements such as titles, narrative text, and list
+MinerUfromtheSLAM-LLMpaper,includingquan-
+items,whileDoclingandMinerUpreservesection- titative result tables and architectural diagrams. This
+like structure through Markdown headings, table illustratesthatstructure-awareparsingcanpreservenot
+markup,imagereferences,andextractedvisualele- onlytext,butalsovisualdocumentelementsthatmay
+ments. beusefulfordownstreamanalysisandindexing.
+Parser Avg.Similarity Avg.Relevance Avg.Coherence
+5.2 TableandFigurePreservation Docling 0.619 1.60 4.20
+MinerU 0.604 1.40 3.20
+PyMuPDF 0.628 1.20 2.00
+Akeydistinctionemergesinthehandlingofnon-
+PyPDF 0.582 1.40 2.80
+textualelements. Flatparsersfailtopreservetab- Tika 0.602 1.40 3.80
+Unstructured 0.579 1.60 3.20
+ularstructure,oftencollapsingtablesintounread-
+pdfplumber 0.594 0.80 1.20
+abletext. Incontrast,modernstructure-awaretools
+increasinglysupportextractingimages,tables,and Table2: Rank-1retrievalcomparisonacrossrepresenta-
+tivequeries. Relevanceismanuallyratedfrom0–2and
+otherlayout-sensitiveelementsasexplicitartifacts.
+coherencefrom1–5.
+Unstructured,forexample,providesdocumented
+supportforextractingembeddedimagesandtables
+from PDFs as Base64-encoded visual elements, 5.4 RetrievalQuality
+whichcanthenbedecodedandviewedseparately
+To evaluate downstream effects, we performed a
+(Unstructured,2026). Inourexperiments,MinerU
+smallretrieval-basedcomparisonusingfiverepre-
+extractstablesandfiguresasseparateimageassets,
+sentative queries over chunks produced by each
+maintainingtheirvisualandsemanticintegrity.
+parser. Eachqueryandchunkwasencodedasan
+Thiscapabilityallowsstructuredparserstoretain embeddingvector,andrank-1retrievalwasdeter-
+informationthatwouldotherwisebelost,particu- minedusingcosinesimilarity:
+larlyindocumentswheretablesandfigurescontain
+q·c
+criticaldata. Figure2showsexamplesoftablesand cos(q,c) = (1)
+∥q∥∥c∥
+diagrams extracted by MinerU as separate visual
+artifactsfromtheSLAM-LLMpaper. whereqisthequeryembeddingandcisacan-
+didatechunkembedding. Thisformulationfollows
+the same general idea used throughout neural re-
+5.3 StructuredOutputRepresentations
+trievalandattention-basedNLPsystems: compare
+Structure-awareparsersproducericheroutputsthan learnedvectorrepresentationstodeterminewhich
+plain text extraction. MinerU produces layout- information is most relevant to a query (Wang,
+aware outputs that include bounding boxes, hi- 2026).
+erarchical labels (e.g., title, paragraph), and seg- As shown in Table 2 and Figure 3, PyMuPDF
+mentation of document elements. Docling pro- achievedthehighestaveragecosinesimilarityscore
+ducesMarkdownoutputwithheadings,links,im- (0.628), but structure-aware outputs such as Do-
+ageplaceholders,andtablemarkup. Theserepre- clingandMinerUproducedhighermanuallyrated
+sentationsenabledownstreamsystemstoperform coherence. Doclingachievedthehighestcoherence
+moreprecisechunkingandsemanticindexing. score (4.20), while pdfplumber performed worst
+
+--- PAGE 7 ---
+chunks,whichinturnproduceweakerorlessinter-
+pretableretrievedresults. Theretrievalcomparison
+supportsthispattern: pdfplumberachievedamod-
+erateaveragesimilarityscorebutreceivedthelow-
+est relevance and coherence ratings. Conversely,
+Doclingachievedthehighestcoherencescorede-
+spitenothavingthehighestaveragesimilarity. This
+indicatesthatretrievalusefulnessdependsnotonly
+on vector similarity, but also on whether the re-
+trievedchunkremainssemanticallycoherent.
+6.3 Multimodal-ReadyParsing
+Figure 3: Average cosine similarity versus average
+A key insight from our experiments is that ad-
+human-ratedcoherenceacrossparseroutputs. Thefig-
+ureshowsthathighercosinesimilaritydoesnotneces- vanced parsers such as Docling and MinerU pro-
+sarilycorrespondtomorecoherentretrievedchunks. duceoutputsthatarenotlimitedtoplaintext. Do-
+clingpreservesMarkdownstructure,tablemarkup,
+links,andimageplaceholders,whileMinerUaddi-
+duetoseverespacingandlayoutartifacts. Thesere-
+tionallyextractstablesandfiguresasseparatearti-
+sultssuggestthatembeddingsimilarityalonedoes
+facts. Theseparsersenableaformofmultimodal-
+notfullycaptureretrievalquality: structurallyco-
+readyparsing,wherebothtextualandvisualinfor-
+herentchunkscanbemoreusefulevenwhentheir
+mationarepreserved.
+similarityscoresareslightlylower.
+Overall, the results demonstrate that parsing This expands the capabilities of document in-
+qualityvariessignificantlyacrossapproaches,with gestionpipelinesbeyondtraditionaltext-basedpro-
+structure-aware methods providing a richer and cessingandopensopportunitiesforintegratingmul-
+moreusablerepresentationofdocumentcontent. timodalLLMsystems.
+6 Analysis
+6.4 Tradeoffs
+Ourresultsrevealthatdocumentparsingexistsona
+spectrumofstructuralfidelity,ratherthanabinary While structure-aware parsers provide higher-
+distinction between correct and incorrect extrac- quality outputs, they introduce tradeoffs in com-
+tion. putational complexity, runtime, and dependency
+management. Simplerparsersremainusefulinsce-
+6.1 ParsingSpectrum
+narioswherespeedandsimplicityareprioritized.
+Weidentifythreelevelsofparsingquality: Forrapidprototypingorlightweightapplications,
+flatextractionmaybesufficient. Forsystemswhere
+• Flat Parsing: Produces raw text with min-
+retrievalquality,traceability,ordocumentfidelity
+imal structure, often introducing noise and
+areimportant,structure-awareparsingismoreap-
+fragmentation.
+propriate.
+• CleanTextParsing: Producesreadabletext Theresultsalsoalignwithdesignguidancefrom
+but lacks hierarchical or semantic organiza- thebroaderScriptorium/RefAInedprojectcontext,
+tion. wheredocumentingestionwastreatedasthefoun-
+dationfordownstreamretrievalandquestiongener-
+• StructuredParsing: Preservesdocumenthi-
+ation. Inthatsetting,preprocessingquality,chunk
+erarchy,layout,andsemanticgroupings.
+overlap, and metadata tagging were identified as
+Thisspectrumdirectlyinfluencesthequalityof importantforrelevance,traceability,anddebugging
+downstreamprocessing. (Pisman,2025). Ourparsercomparisonprovides
+anempiricalexampleofthisprinciple: extraction
+6.2 PropagationofErrors
+artifactsintroducedbeforeembeddingcanpersist
+Errorsintroducedduringparsingpropagatethrough intoretrievalresultsandreducehuman-ratedcoher-
+the pipeline. Poor parsing leads to incoherent ence.
+
+--- PAGE 8 ---
+6.5 LimitationsandFutureWork References
+Alimitationofthisevaluationisthattheretrieval Ryan Chiang. 2024. Optimizing retrieval-
+study uses a small set of representative queries augmented generation: Strategies and
+tricks. https://ryanschiang.com/
+over a single academic paper. The results should
+optimizing-retrieval-augmented-generation.
+thereforebeinterpretedasanexploratorycompar-
+AccessedApril2026.
+ison rather than a large-scale benchmark. Future
+workcouldextendtheevaluationtomoredocument Jacob Devlin, Ming-Wei Chang, Kenton Lee, and
+KristinaToutanova.2019. Bert: Pre-trainingofdeep
+types,largerquerysets,andautomatedrelevance
+bidirectionaltransformersforlanguageunderstand-
+judgments.
+ing. NAACL.
+6.6 Summary XiFang,HaoyiTao,ShuwenYang,ChaozhengHuang,
+Suyang Zhong, Haocheng Lu, Han Lyu, Junjie
+Overall,ourfindingsdemonstratethatparsingqual-
+Wang, Xinyu Li, Linfeng Zhang, and Guolin Ke.
+ityisacriticalfactorinLLM-basedpipelines. In- 2025. Uni-parser technical report. arXiv preprint
+vestinginstructure-awareparsingprovidesaprac- arXiv:2512.15098.
+tical pathway to improving system performance
+Chang Liu, Hongkai Chen, Yujun Cai, Hang Wu,
+withoutmodifyingcoremodels.
+Qingwen Ye, Ming-Hsuan Yang, and Yiwei Wang.
+2025. Structured attention matters to multimodal
+7 Conclusion llms in document understanding. arXiv preprint
+arXiv:2506.21600.
+Inthiswork,weinvestigatedtheroleofdocument
+parsinginLLM-basedretrievalsystemsanddemon- LingruiMei,JiayuYao,YuyaoGe,YiweiWang,Bao-
+longBi,YujunCai,JiazhiLiu,MingyuLi,Zhong-Zhi
+strated that it is a critical factor in determining
+Li,DuzhenZhang,and1others.2025. Asurveyof
+downstream performance. While prior work has
+contextengineeringforlargelanguagemodels. arXiv
+largelyfocusedonmodelarchitecturesandretrieval preprintarXiv:2507.13334.
+strategies,ourfindingsshowthatthequalityofdoc-
+LinkeOuyang, YuanQu, HongbinZhou, JiaweiZhu,
+ument ingestion can have an equally significant
+RuiZhang,QunshuLin,BinWang,ZhiyuanZhao,
+impact.
+Man Jiang, Xiaomeng Zhao, Jin Shi, Fan Wu,
+Through a controlled comparison of parsing Pei Chu, Minghao Liu, Zhenxiang Li, Chao Xu,
+methods, we showed that flat text extraction ap- BoZhang,BotianShi,ZhongyingTu,andConghui
+He. 2024. Omnidocbench: Benchmarking diverse
+proachesoftenfailtopreservedocumentstructure,
+pdf document parsing with comprehensive annota-
+leading to degraded chunking and less coherent
+tions. arXivpreprintarXiv:2412.07626.
+retrievedresults. Incontrast,structure-awarepars-
+ingmethodsretainsemantichierarchyandproduce MichaelPisman.2025. Documentingestionandprepro-
+cessing. Scriptorium/RefAIned project discussion.
+morecoherentdocumentrepresentations. Ourre-
+CSE195projectguidance,accessedApril2026.
+trievalcomparisonfurthershowsthathighercosine
+similaritydoesnotnecessarilycorrespondtobetter Unstructured. 2026. Extract images and ta-
+human-ratedrelevanceorcoherence. bles from documents. https://docs.
+unstructured.io/open-source/how-to/
+Our analysis highlights a clear relationship be-
+extract-image-block-types. Accessed April
+tweenparsingqualityanddownstreamrepresenta-
+2026.
+tionquality,emphasizingthaterrorsintroduceddur-
+ingearlystagesofthepipelinepropagatethrough Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob
+Uszkoreit,LlionJones,and1others.2017. Attention
+subsequentcomponents. Theseresultssuggestthat
+isallyouneed. NeurIPS.
+improvingupstreamdataprocessingisapractical
+andimpactfulapproachtoenhancingLLMsystems Yiwei Wang. 2026. Cse 188: Natural lan-
+withoutmodifyingcoremodels. guage processing. https://wangywust.github.
+io/nlp-course-2026. Coursewebsite,University
+Overall,thisworkunderscorestheimportanceof
+ofCalifornia,Merced.AccessedApril2026.
+treatingdocumentingestionasafirst-classdesign
+consideration. By incorporating structure-aware QintongZhang,BinWang,VictorShea-JayHuang,Jun-
+parsingintoretrievalpipelines,developerscanim- yuanZhang,ZhengrenWang,HaoLiang,Conghui
+He, and Wentao Zhang. 2024. Document parsing
+prove the quality of retrieved context and build
+unveiled: Techniques,challenges,andprospectsfor
+more reliable, interpretable, and effective LLM-
+structured information extraction. arXiv preprint
+basedapplications. arXiv:2410.21169.
+
+--- PAGE 9 ---
+RongzhiZhu,XiangyuLiu,ZequnSun,YiweiWang,
+andWeiHu.2025. Mitigatinglost-in-retrievalprob-
+lemsinretrievalaugmentedmulti-hopquestionan-
+swering. InProceedingsofthe63rdAnnualMeeting
+oftheAssociationforComputationalLinguistics(Vol-
+ume1: LongPapers),pages22362–22375.

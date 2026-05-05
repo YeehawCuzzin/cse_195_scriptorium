@@ -1,0 +1,542 @@
+[Title]
+Structure Matters: Evaluating Document Parsing Strategies for LLM-Based Retrieval Systems
+
+[Title]
+Krish Sarkar University of California, Merced krishsarkar@ucmerced.edu
+
+[Title]
+Abstract
+
+[NarrativeText]
+Document parsing is a critical but often over- looked component of LLM-based retrieval sys- tems. While most prior work focuses on im- proving embedding models and retrieval strate- gies, the quality of upstream document inges- tion can significantly influence downstream per- formance. In this work, we systematically eval- uate multiple PDF parsing approaches, rang- ing from flat text extraction to structure-aware methods, to understand how parsing quality af- fects document representation.
+
+[NarrativeText]
+We implement a modular ingestion pipeline and compare parsers including PyMuPDF, pdf- plumber, PyPDF, Apache Tika, Unstructured, Docling, and MinerU. Our analysis reveals that parsing quality exists on a spectrum: flat ex- traction methods introduce noise and lose struc- tural information, while structure-aware parsers preserve hierarchical organization and seman- tic boundaries. Furthermore, advanced parsers such as Docling and MinerU retain structured artifacts such as Markdown headings, table markup, image references, and extracted fig- ures, enabling multimodal-ready document rep- resentations.
+
+[NarrativeText]
+Our findings demonstrate that higher-fidelity parsing produces cleaner, more coherent doc- ument segments and better preserves informa- tion necessary for downstream processing. In the retrieval evaluation, PyMuPDF achieved the highest average cosine similarity, but Docling produced the highest human-rated coherence, showing that similarity scores alone do not fully capture retrieval usefulness. We conclude that investing in structure-aware parsing is a practi- cal and impactful way to improve LLM-based systems, even without modifying underlying models.
+
+[Text]
+1
+
+[Title]
+Introduction
+
+[NarrativeText]
+Large Language Models (LLMs) have become central to modern NLP systems (Vaswani et al.,
+
+[NarrativeText]
+2017; Devlin et al., 2019), particularly in retrieval- augmented generation (RAG) pipelines where ex- ternal documents are incorporated to improve fac- tual accuracy and contextual relevance. In such sys- tems, unstructured data sources such as PDFs are commonly ingested, processed, and transformed into vector representations for semantic search. The project follows the CSE 188 emphasis on LLM- related work, experimental rigor, appropriate met- ric choice, error analysis, and ACL-style commu- nication (Wang, 2026). These criteria motivate the paper’s focus on controlled parser comparison and retrieval-oriented evaluation. More broadly, this work can be viewed as a focused context engineer- ing study: it examines how different preprocessing choices change the information payload available to a downstream retrieval system (Mei et al., 2025). A critical step in these pipelines is document parsing, where raw PDF files are converted into representations suitable for downstream processing. However, PDFs are inherently complex, containing rich structural information such as section hierar- chies, multi-column layouts, tables, figures, equa- tions, and metadata. Document parsing research emphasizes that parsing should preserve structural relationships, semantic organization, and machine- readable representations such as Markdown, JSON, or XML rather than merely transcribing text (Zhang et al., 2024). Many commonly used parsing ap- proaches, such as flat text extraction, discard this structural information, resulting in noisy or frag- mented text. These artifacts propagate through subsequent stages, affecting chunking quality, em- bedding representations, and retrieved context.
+
+[NarrativeText]
+In this work, we investigate how different docu- ment parsing strategies impact downstream repre- sentation quality in LLM-based retrieval systems. We focus on the ingestion pipeline as a first-class component of the system, rather than treating it as a trivial preprocessing step. Specifically, we compare a range of parsing approaches, including
+
+[NarrativeText]
+flat extractors such as PyMuPDF, pdfplumber, and PyPDF; semi-structured extraction through Apache Tika; and structure-aware methods such as Unstruc- tured, Docling, and MinerU. We analyze their ef- fects on document representation, chunk coherence, retrieval usefulness, and multimodal readiness.
+
+[NarrativeText]
+Through empirical and qualitative analysis, we show that structure-aware parsing improves the co- herence and semantic integrity of document chunks. In a small retrieval-based comparison, we find that cosine similarity alone does not fully cap- ture retrieval quality: some flat extraction methods achieve competitive similarity scores while produc- ing less coherent retrieved chunks. We further show that these benefits come with tradeoffs in system complexity, dependency management, and runtime performance.
+
+[NarrativeText]
+The contributions of this paper are as follows: (1) we provide a systematic comparison of document parsing strategies in the context of LLM-based re- trieval pipelines; (2) we evaluate how parsing qual- ity affects chunk coherence and rank-1 retrieval usefulness across representative queries; and (3) we highlight the importance of structure-aware in- gestion as a key design consideration for building reliable and effective LLM systems.
+
+[Title]
+2 Related Work
+
+[Title]
+2.1 Document Parsing and Structured
+
+[Title]
+Extraction
+
+[NarrativeText]
+Document parsing is the process of transforming unstructured or semi-structured documents into structured, machine-readable representations for downstream applications such as knowledge base construction and retrieval-augmented generation (Zhang et al., 2024). Unlike traditional OCR, which primarily focuses on transcribing text, document parsing aims to preserve structural relationships, semantic organization, reading order, and heteroge- neous document elements such as tables, formulas, figures, and charts (Zhang et al., 2024).
+
+[NarrativeText]
+Recent document parsing research distinguishes between pipeline-based systems and end-to-end vision-language approaches. Pipeline-based sys- tems decompose parsing into stages such as lay- out detection, OCR, table recognition, formula recognition, and reading-order recovery, while end- to-end systems attempt to directly produce struc- tured outputs such as Markdown, HTML, or LaTeX (Ouyang et al., 2024). This distinction is impor- tant for LLM-based retrieval because each parser
+
+[NarrativeText]
+representation affects the form of the text and meta- data that later become chunks, embeddings, and retrieved context.
+
+[NarrativeText]
+Modern benchmarks further show that document parsing remains an open evaluation problem. Om- niDocBench argues that document content extrac- tion supports the data needs of LLMs and RAG systems, but that existing benchmarks often have limited document coverage, simplified evaluation procedures, and insufficient fine-grained analysis across content types (Ouyang et al., 2024). This motivates evaluating parsers not only by whether they extract text, but also by whether they preserve useful structure for downstream systems. Recent work on multimodal document understanding fur- ther supports the importance of structure-aware in- put representations. Liu et al. show that raw OCR text can sometimes impair multimodal LLM doc- ument understanding because it discards structure and produces scattered attention, while structured representations based on a LATEX-like format help preserve hierarchy and spatial relationships (Liu et al., 2025). This finding aligns with the motiva- tion of our work: parser outputs should be evalu- ated not only by text coverage, but also by how well they preserve structure for downstream retrieval.
+
+[Title]
+2.2 Retrieval-Augmented Generation and
+
+[Title]
+Chunking
+
+[NarrativeText]
+Retrieval-augmented generation (RAG) systems extend language models by retrieving relevant ex- ternal documents or chunks at inference time. A typical RAG pipeline includes ingestion, chunk- ing, embedding, retrieval, and generation. In this setting, retrieval quality depends not only on the embedding model or similarity function, but also on the quality of the document representation pro- duced before embedding.
+
+[NarrativeText]
+Chunking is a key design choice in RAG pipelines. Prior RAG guidance emphasizes that small chunks may focus retrieval but risk frag- menting context, while large chunks preserve more context but may introduce noise (Chiang, 2024). Boundary selection is also important: headings, paragraphs, lists, and tables often represent mean- ingful semantic boundaries, so splitting purely by character count can produce chunks that begin or end in the middle of a coherent document unit (Chi- ang, 2024). These concerns connect directly to document parsing because a structure-aware parser can expose headings, sections, tables, and figure references that a chunking strategy can use.
+
+[NarrativeText]
+Course project guidance from the Scripto- rium/RefAIned ecosystem similarly emphasized that document ingestion and preprocessing lay the foundation for accurate downstream genera- tion. In particular, the guidance highlighted auto- mated loaders, chunking with overlap, metadata tagging, and human review as mechanisms for im- proving retrieval relevance, traceability, and de- bugging (Pisman, 2025). Retrieval quality is also sensitive to how information is represented before retrieval. Zhu et al. identify a “lost-in-retrieval” problem in multi-hop QA, where missing key enti- ties degrade retrieval, disrupt the reasoning chain, and lead to incorrect answers (Zhu et al., 2025). Although our setting is single-document retrieval rather than multi-hop QA, the same principle ap- plies: upstream representation errors can prevent the retriever from surfacing useful context.
+
+[Title]
+2.3 Tables, Figures, and Multimodal
+
+[Title]
+Document Elements
+
+[NarrativeText]
+A major limitation of flat text extraction is that it often collapses tables, figures, and other visual elements into noisy text. This is especially prob- lematic for academic papers, where tables and fig- ures often contain central experimental evidence. Structure-aware tools increasingly support the ex- traction of non-textual elements as explicit artifacts. For example, Unstructured documents support for extracting embedded images and tables from PDFs as Base64-encoded elements that can be decoded and viewed separately (Unstructured, 2026).
+
+[NarrativeText]
+Recent document parsing systems also empha- size multimodal and layout-aware representations. Uni-Parser, for example, describes scientific PDF parsing as a process of preserving fine-grained alignments across text, equations, tables, figures, and chemical structures, with outputs such as JSON, Markdown, and HTML intended for down- stream LLM applications (Fang et al., 2025). While this paper does not build a full multimodal RAG system, the parser comparison shows why preserv- ing visual and structural artifacts matters for future retrieval pipelines.
+
+[Title]
+2.4 Gap and Contribution
+
+[NarrativeText]
+Prior work has separately studied document pars- ing, RAG pipelines, chunking, and retrieval eval- uation. However, the interaction between parsing quality and retrieval usefulness remains underexam- ined in practical student-built LLM systems. Many pipelines still treat parsing as a solved preprocess-
+
+[NarrativeText]
+ing step and begin evaluation only after text has already been extracted.
+
+[NarrativeText]
+This work addresses that gap by comparing mul- tiple PDF parsing strategies inside a controlled in- gestion and retrieval pipeline. By holding chunk- ing, embedding, and retrieval settings constant while varying parser output, we evaluate how ex- traction artifacts and structural preservation affect chunk coherence, rank-1 retrieval usefulness, and multimodal readiness.
+
+[Title]
+3 Methodology
+
+[NarrativeText]
+We design a document ingestion pipeline that trans- forms PDFs into structured representations suit- able for downstream LLM-based retrieval systems. Unlike traditional pipelines that rely on flat text extraction, our approach explicitly evaluates multi- ple parsing strategies to understand how structural fidelity affects downstream processing.
+
+[Title]
+Figure 1: Overview of the document ingestion and re- trieval evaluation pipeline.
+
+[Title]
+3.1 Pipeline Overview
+
+[NarrativeText]
+As shown in Figure 1, the pipeline consists of four stages: parsing, chunking, embedding, and retrieval. In this work, we focus primarily on the parsing stage, isolating its impact by holding the downstream chunking, embedding, and retrieval settings constant.
+
+[Title]
+3.2 Parser Implementations
+
+[NarrativeText]
+We evaluate multiple parsing approaches under a unified interface:
+
+[ListItem]
+Flat text parsers: PyMuPDF, PyPDF, pdf- plumber
+
+[ListItem]
+Semi-structured parsers: Apache Tika
+
+[ListItem]
+Structure-aware parsers: Unstructured, Do- cling, MinerU, and related modern document parsing systems (Unstructured, 2026; Fang et al., 2025)
+
+[NarrativeText]
+Each parser processes the same input document and produces outputs that vary in structural fi- delity and semantic organization. In addition to the
+
+[NarrativeText]
+parsers used in the final retrieval comparison, the project explored several additional tools, including GROBID, Marker, and Nougat. These tools were useful for evaluating differences in installation com- plexity, output format, structural fidelity, and in- tegration difficulty. However, because some tools required separate environments, command-line run- times, or external services, the final retrieval com- parison focuses on the parsers with complete saved outputs.
+
+[Title]
+3.3 Structured Representations
+
+[NarrativeText]
+Structure-aware parsers produce outputs that go beyond plain text. Docling and MinerU generate representations that include:
+
+[ListItem]
+Hierarchical text such as titles, sections, and paragraphs
+
+[ListItem]
+Markdown structure such as headings, links, and table markup
+
+[ListItem]
+Layout-aware information such as figures, ta- bles, and image references
+
+[ListItem]
+Extracted visual elements, including tables and figures as separate artifacts
+
+[NarrativeText]
+These representations enable downstream sys- tems to operate on semantically meaningful units rather than arbitrary text spans.
+
+[Title]
+3.4 Evaluation Criteria
+
+[NarrativeText]
+Motivated by recent work arguing for comprehen- sive document parsing evaluation across layout categories, content types, and document attributes (Ouyang et al., 2024), we evaluate parsing outputs along four dimensions:
+
+[ListItem]
+Structural Fidelity: Preservation of docu- ment hierarchy
+
+[ListItem]
+Readability: Cleanliness and coherence of extracted text
+
+[ListItem]
+Layout Fidelity: Preservation of tables, fig- ures, and formatting
+
+[ListItem]
+Processing Efficiency: Runtime and com- plexity
+
+[NarrativeText]
+This evaluation allows us to analyze how parsing quality influences the overall effectiveness of LLM- based pipelines.
+
+[Title]
+4 Experiments
+
+[NarrativeText]
+We design our experiments to evaluate how differ- ent document parsing strategies affect downstream processing in an LLM-based retrieval pipeline. By holding all components of the pipeline constant except for the parsing stage, we isolate the impact of parsing quality on chunking, embedding, and retrieval.
+
+[Title]
+4.1 Dataset
+
+[NarrativeText]
+We conduct the final retrieval experiment on an IEEE-style academic PDF, the SLAM-LLM paper, which contains multi-column formatting, section hierarchies, tables, figures, and dense technical content. This document provides a realistic test case for evaluating parsing robustness and struc- tural preservation.
+
+[NarrativeText]
+During development, additional parser outputs and tooling experiments were explored, but the reported retrieval comparison uses this single rep- resentative paper to keep the parser comparison controlled and reproducible.
+
+[Title]
+4.2 Parsing Methods Compared
+
+[NarrativeText]
+We evaluate a range of commonly used PDF pars- ing tools:
+
+[ListItem]
+PyMuPDF: A lightweight, fast parser that per- forms flat text extraction with minimal struc- tural awareness.
+
+[ListItem]
+pdfplumber: A text extraction tool with basic layout handling but substantial sensitivity to multi-column formatting.
+
+[ListItem]
+PyPDF: A general-purpose PDF parser that extracts raw text but may introduce spacing artifacts.
+
+[ListItem]
+Apache Tika: A document extraction frame- work that produces readable text but may in- clude blank-space and page-header artifacts.
+
+[ListItem]
+Unstructured: A structure-aware parsing framework that identifies document elements such as narrative text, titles, and list items.
+
+[ListItem]
+Docling: A structure-aware parser that pro- duces Markdown output with headings, links, image placeholders, and table markup.
+
+[ListItem]
+MinerU: A structured document processing tool designed to preserve layout, semantic hi- erarchy, and visual document elements.
+
+[NarrativeText]
+These methods span a spectrum from flat extrac- tion to structure-aware parsing, enabling compara- tive analysis of their effects on downstream tasks.
+
+[Title]
+4.3 Experimental Setup
+
+[NarrativeText]
+For each parser, we process the same input PDF and save the extracted output as plain text or Markdown, depending on the parser. These outputs are then passed through a consistent downstream pipeline:
+
+[ListItem]
+Chunking: Text is segmented into fixed- size chunks of approximately 1200 characters with 200-character overlap. Prior RAG guid- ance emphasizes that chunk size, overlap, and boundary selection affect whether retrieved information remains useful or becomes frag- mented (Chiang, 2024).
+
+[ListItem]
+Embedding: Each chunk is encoded using the all-MiniLM-L6-v2 model, producing 384- dimensional embeddings.
+
+[ListItem]
+Retrieval: Query embeddings are compared against chunk embeddings using cosine sim- ilarity. For each query-parser pair, the top- ranked chunk is inspected and manually rated for relevance and coherence.
+
+[NarrativeText]
+This standardized setup holds chunking, embed- ding, and retrieval settings constant so that ob- served differences can be attributed primarily to parser output quality. The evaluation uses five rep- resentative queries about the SLAM-LLM paper and compares rank-1 retrieval results across seven parser outputs.
+
+[Title]
+4.4 Qualitative Evaluation of Parsing
+
+[NarrativeText]
+We first evaluate parsing outputs qualitatively by examining:
+
+[ListItem]
+Structure preservation: whether section headings and document hierarchy are main- tained.
+
+[ListItem]
+Text integrity: whether words and sentences are extracted without corruption or merging artifacts.
+
+[ListItem]
+Noise levels: presence of headers, footers, or irrelevant content.
+
+[NarrativeText]
+These factors directly influence the quality of
+
+[NarrativeText]
+chunked text and subsequent embeddings.
+
+[Title]
+Parser pdfplumber PyMuPDF PyPDF Tika Unstructured Docling MinerU
+
+[Title]
+Structure Readability
+
+[Title]
+Layout Low Low Low Low
+
+[Title]
+Low Medium Medium Medium Medium Medium
+
+[Title]
+Low Low Low Medium High High High
+
+[Title]
+High High
+
+[Title]
+High High
+
+[Title]
+Speed Fast Fast Fast Medium Slow Medium Medium
+
+[NarrativeText]
+Table 1: Comparison of parsing approaches across eval- uation dimensions.
+
+[Title]
+4.5 Chunking and Representation Analysis
+
+[NarrativeText]
+We analyze how parsing affects chunk formation by inspecting the resulting segments. In flat ex- traction methods, chunk boundaries are often mis- aligned with semantic units, leading to fragmented or mixed-content chunks. In contrast, structure- aware parsing produces chunks that better corre- spond to logical sections of the document.
+
+[Title]
+4.6 Retrieval Evaluation
+
+[NarrativeText]
+To assess downstream impact, we perform a retrieval-based evaluation using representative nat- ural language queries. For each parsing method, we retrieve the top-k most similar chunks and evaluate:
+
+[ListItem]
+Relevance: whether retrieved chunks contain information relevant to the query.
+
+[ListItem]
+Coherence: whether chunks form complete and interpretable units of meaning.
+
+[NarrativeText]
+Example queries include questions targeting key aspects of the document, such as definitions, con- tributions, and system descriptions.
+
+[Text]
+4.7
+
+[Title]
+Implementation Details
+
+[NarrativeText]
+All experiments are conducted using Python-based tooling. Parsing is performed using the respective libraries for each method, while embedding gener- ation is handled through the SentenceTransformers framework. The system is executed on a local envi- ronment, and all methods are applied to identical input documents to ensure consistency.
+
+[Title]
+5 Results
+
+[NarrativeText]
+We compare multiple document parsing strategies based on structural preservation, readability, layout fidelity, and processing speed. Table 1 summarizes the qualitative comparison across parsers.
+
+[Title]
+5.1 Text Quality and Structural Preservation
+
+[NarrativeText]
+Flat extraction methods frequently produce noisy outputs, including merged tokens, broken spac- ing, and loss of document hierarchy. For exam- ple, pdfplumber produced artifacts such as “JOUR- NALOFLATEXCLASSFILES,VOL.14,NO.8” and merged words, while PyPDF introduced spacing ar- tifacts such as separated letters in headings. These artifacts degrade readability and disrupt semantic segmentation.
+
+[NarrativeText]
+In contrast, structure-aware parsers preserve more logical organization. Unstructured labels elements such as titles, narrative text, and list items, while Docling and MinerU preserve section- like structure through Markdown headings, table markup, image references, and extracted visual ele- ments.
+
+[Title]
+5.2 Table and Figure Preservation
+
+[NarrativeText]
+A key distinction emerges in the handling of non- textual elements. Flat parsers fail to preserve tab- ular structure, often collapsing tables into unread- able text. In contrast, modern structure-aware tools increasingly support extracting images, tables, and other layout-sensitive elements as explicit artifacts. Unstructured, for example, provides documented support for extracting embedded images and tables from PDFs as Base64-encoded visual elements, which can then be decoded and viewed separately (Unstructured, 2026). In our experiments, MinerU extracts tables and figures as separate image assets, maintaining their visual and semantic integrity.
+
+[NarrativeText]
+This capability allows structured parsers to retain information that would otherwise be lost, particu- larly in documents where tables and figures contain critical data. Figure 2 shows examples of tables and diagrams extracted by MinerU as separate visual artifacts from the SLAM-LLM paper.
+
+[Title]
+5.3 Structured Output Representations
+
+[NarrativeText]
+Structure-aware parsers produce richer outputs than plain text extraction. MinerU produces layout- aware outputs that include bounding boxes, hi- erarchical labels (e.g., title, paragraph), and seg- mentation of document elements. Docling pro- duces Markdown output with headings, links, im- age placeholders, and table markup. These repre- sentations enable downstream systems to perform more precise chunking and semantic indexing.
+
+[NarrativeText]
+Figure 2: Representative visual artifacts extracted by MinerU from the SLAM-LLM paper, including quan- titative result tables and architectural diagrams. This illustrates that structure-aware parsing can preserve not only text, but also visual document elements that may be useful for downstream analysis and indexing.
+
+[Title]
+Parser Docling MinerU PyMuPDF PyPDF Tika Unstructured pdfplumber
+
+[Text]
+Avg. Similarity Avg. Relevance Avg. Coherence 1.60 1.40 1.20 1.40 1.40 1.60 0.80
+
+[Text]
+0.619 0.604 0.628 0.582 0.602 0.579 0.594
+
+[Text]
+4.20 3.20 2.00 2.80 3.80 3.20 1.20
+
+[NarrativeText]
+Table 2: Rank-1 retrieval comparison across representa- tive queries. Relevance is manually rated from 0–2 and coherence from 1–5.
+
+[Title]
+5.4 Retrieval Quality
+
+[NarrativeText]
+To evaluate downstream effects, we performed a small retrieval-based comparison using five repre- sentative queries over chunks produced by each parser. Each query and chunk was encoded as an embedding vector, and rank-1 retrieval was deter- mined using cosine similarity:
+
+[Title]
+cos(q,c) =
+
+[Text]
+q · c ∥q∥∥c∥
+
+[NarrativeText]
+where q is the query embedding and c is a can- didate chunk embedding. This formulation follows the same general idea used throughout neural re- trieval and attention-based NLP systems: compare learned vector representations to determine which information is most relevant to a query (Wang, 2026).
+
+[NarrativeText]
+As shown in Table 2 and Figure 3, PyMuPDF achieved the highest average cosine similarity score (0.628), but structure-aware outputs such as Do- cling and MinerU produced higher manually rated coherence. Docling achieved the highest coherence score (4.20), while pdfplumber performed worst
+
+[Text]
+(1)
+
+[NarrativeText]
+Figure 3: Average cosine similarity versus average human-rated coherence across parser outputs. The fig- ure shows that higher cosine similarity does not neces- sarily correspond to more coherent retrieved chunks.
+
+[NarrativeText]
+due to severe spacing and layout artifacts. These re- sults suggest that embedding similarity alone does not fully capture retrieval quality: structurally co- herent chunks can be more useful even when their similarity scores are slightly lower.
+
+[NarrativeText]
+Overall, the results demonstrate that parsing quality varies significantly across approaches, with structure-aware methods providing a richer and more usable representation of document content.
+
+[Title]
+6 Analysis
+
+[NarrativeText]
+Our results reveal that document parsing exists on a spectrum of structural fidelity, rather than a binary distinction between correct and incorrect extrac- tion.
+
+[Title]
+6.1 Parsing Spectrum
+
+[NarrativeText]
+We identify three levels of parsing quality:
+
+[ListItem]
+Flat Parsing: Produces raw text with min- imal structure, often introducing noise and fragmentation.
+
+[ListItem]
+Clean Text Parsing: Produces readable text but lacks hierarchical or semantic organiza- tion.
+
+[ListItem]
+Structured Parsing: Preserves document hi- erarchy, layout, and semantic groupings.
+
+[NarrativeText]
+This spectrum directly influences the quality of
+
+[Title]
+downstream processing.
+
+[Title]
+6.2 Propagation of Errors
+
+[NarrativeText]
+Errors introduced during parsing propagate through the pipeline. Poor parsing leads to incoherent
+
+[NarrativeText]
+chunks, which in turn produce weaker or less inter- pretable retrieved results. The retrieval comparison supports this pattern: pdfplumber achieved a mod- erate average similarity score but received the low- est relevance and coherence ratings. Conversely, Docling achieved the highest coherence score de- spite not having the highest average similarity. This indicates that retrieval usefulness depends not only on vector similarity, but also on whether the re- trieved chunk remains semantically coherent.
+
+[Title]
+6.3 Multimodal-Ready Parsing
+
+[NarrativeText]
+A key insight from our experiments is that ad- vanced parsers such as Docling and MinerU pro- duce outputs that are not limited to plain text. Do- cling preserves Markdown structure, table markup, links, and image placeholders, while MinerU addi- tionally extracts tables and figures as separate arti- facts. These parsers enable a form of multimodal- ready parsing, where both textual and visual infor- mation are preserved.
+
+[NarrativeText]
+This expands the capabilities of document in- gestion pipelines beyond traditional text-based pro- cessing and opens opportunities for integrating mul- timodal LLM systems.
+
+[Title]
+6.4 Tradeoffs
+
+[NarrativeText]
+While structure-aware parsers provide higher- quality outputs, they introduce tradeoffs in com- putational complexity, runtime, and dependency management. Simpler parsers remain useful in sce- narios where speed and simplicity are prioritized. For rapid prototyping or lightweight applications, flat extraction may be sufficient. For systems where retrieval quality, traceability, or document fidelity are important, structure-aware parsing is more ap- propriate.
+
+[NarrativeText]
+The results also align with design guidance from the broader Scriptorium/RefAIned project context, where document ingestion was treated as the foun- dation for downstream retrieval and question gener- ation. In that setting, preprocessing quality, chunk overlap, and metadata tagging were identified as important for relevance, traceability, and debugging (Pisman, 2025). Our parser comparison provides an empirical example of this principle: extraction artifacts introduced before embedding can persist into retrieval results and reduce human-rated coher- ence.
+
+[Title]
+6.5 Limitations and Future Work
+
+[NarrativeText]
+A limitation of this evaluation is that the retrieval study uses a small set of representative queries over a single academic paper. The results should therefore be interpreted as an exploratory compar- ison rather than a large-scale benchmark. Future work could extend the evaluation to more document types, larger query sets, and automated relevance judgments.
+
+[Title]
+6.6 Summary
+
+[NarrativeText]
+Overall, our findings demonstrate that parsing qual- ity is a critical factor in LLM-based pipelines. In- vesting in structure-aware parsing provides a prac- tical pathway to improving system performance without modifying core models.
+
+[Title]
+7 Conclusion
+
+[NarrativeText]
+In this work, we investigated the role of document parsing in LLM-based retrieval systems and demon- strated that it is a critical factor in determining downstream performance. While prior work has largely focused on model architectures and retrieval strategies, our findings show that the quality of doc- ument ingestion can have an equally significant impact.
+
+[NarrativeText]
+Through a controlled comparison of parsing methods, we showed that flat text extraction ap- proaches often fail to preserve document structure, leading to degraded chunking and less coherent retrieved results. In contrast, structure-aware pars- ing methods retain semantic hierarchy and produce more coherent document representations. Our re- trieval comparison further shows that higher cosine similarity does not necessarily correspond to better human-rated relevance or coherence.
+
+[NarrativeText]
+Our analysis highlights a clear relationship be- tween parsing quality and downstream representa- tion quality, emphasizing that errors introduced dur- ing early stages of the pipeline propagate through subsequent components. These results suggest that improving upstream data processing is a practical and impactful approach to enhancing LLM systems without modifying core models.
+
+[NarrativeText]
+Overall, this work underscores the importance of treating document ingestion as a first-class design consideration. By incorporating structure-aware parsing into retrieval pipelines, developers can im- prove the quality of retrieved context and build more reliable, interpretable, and effective LLM- based applications.
+
+[Title]
+References
+
+[NarrativeText]
+retrieval- Ryan Chiang. and augmented https://ryanschiang.com/ tricks. optimizing-retrieval-augmented-generation. Accessed April 2026.
+
+[ListItem]
+2024. generation:
+
+[Title]
+Optimizing
+
+[Title]
+Strategies
+
+[NarrativeText]
+Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova. 2019. Bert: Pre-training of deep bidirectional transformers for language understand- ing. NAACL.
+
+[NarrativeText]
+Xi Fang, Haoyi Tao, Shuwen Yang, Chaozheng Huang, Suyang Zhong, Haocheng Lu, Han Lyu, Junjie Wang, Xinyu Li, Linfeng Zhang, and Guolin Ke. 2025. Uni-parser technical report. arXiv preprint arXiv:2512.15098.
+
+[NarrativeText]
+Chang Liu, Hongkai Chen, Yujun Cai, Hang Wu, Qingwen Ye, Ming-Hsuan Yang, and Yiwei Wang. 2025. Structured attention matters to multimodal llms in document understanding. arXiv preprint arXiv:2506.21600.
+
+[NarrativeText]
+Lingrui Mei, Jiayu Yao, Yuyao Ge, Yiwei Wang, Bao- long Bi, Yujun Cai, Jiazhi Liu, Mingyu Li, Zhong-Zhi Li, Duzhen Zhang, and 1 others. 2025. A survey of context engineering for large language models. arXiv preprint arXiv:2507.13334.
+
+[NarrativeText]
+Linke Ouyang, Yuan Qu, Hongbin Zhou, Jiawei Zhu, Rui Zhang, Qunshu Lin, Bin Wang, Zhiyuan Zhao, Man Jiang, Xiaomeng Zhao, Jin Shi, Fan Wu, Pei Chu, Minghao Liu, Zhenxiang Li, Chao Xu, Bo Zhang, Botian Shi, Zhongying Tu, and Conghui He. 2024. Omnidocbench: Benchmarking diverse pdf document parsing with comprehensive annota- tions. arXiv preprint arXiv:2412.07626.
+
+[NarrativeText]
+Michael Pisman. 2025. Document ingestion and prepro- cessing. Scriptorium/RefAIned project discussion. CSE 195 project guidance, accessed April 2026.
+
+[Title]
+Unstructured. 2026.
+
+[Title]
+Extract
+
+[Title]
+images and ta- https://docs.
+
+[NarrativeText]
+bles unstructured.io/open-source/how-to/ extract-image-block-types. Accessed April 2026.
+
+[Title]
+from documents.
+
+[NarrativeText]
+Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, and 1 others. 2017. Attention is all you need. NeurIPS.
+
+[NarrativeText]
+lan- Yiwei Wang. 2026. https://wangywust.github. guage processing. io/nlp-course-2026. Course website, University of California, Merced. Accessed April 2026.
+
+[Title]
+Cse 188: Natural
+
+[NarrativeText]
+Qintong Zhang, Bin Wang, Victor Shea-Jay Huang, Jun- yuan Zhang, Zhengren Wang, Hao Liang, Conghui He, and Wentao Zhang. 2024. Document parsing unveiled: Techniques, challenges, and prospects for structured information extraction. arXiv preprint arXiv:2410.21169.
+
+[NarrativeText]
+Rongzhi Zhu, Xiangyu Liu, Zequn Sun, Yiwei Wang, and Wei Hu. 2025. Mitigating lost-in-retrieval prob- lems in retrieval augmented multi-hop question an- swering. In Proceedings of the 63rd Annual Meeting of the Association for Computational Linguistics (Vol- ume 1: Long Papers), pages 22362–22375.

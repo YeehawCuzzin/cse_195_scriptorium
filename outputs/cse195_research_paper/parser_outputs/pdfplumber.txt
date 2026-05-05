@@ -1,0 +1,400 @@
+
+--- PAGE 1 ---
+Scriptorium Parser Benchmark: A Reproducible Ingestion Pipeline for
+Research-Focused RAG
+KrishSarkar
+UniversityofCalifornia,Merced
+krishsarkar@ucmerced.edu
+Abstract nessratherthanfinalretrieval-qualityevalua-
+tion.
+Documentparsingisafoundationalcomponent
+ofretrieval-augmentedgeneration(RAG)sys- 1 Introduction
+tems,yetitisoftentreatedasaminorprepro-
+cessingstep. Inresearch-focusedsystemssuch Large Language Models (LLMs) have become
+as Scriptorium / RefAIned, parser choice af- central to modern NLP systems (Vaswani et al.,
+fects chunking, embedding quality, retrieval 2017;Devlinetal.,2019), especiallyinretrieval-
+coherence,citationtraceability,andthepreser- augmentedgeneration(RAG)pipelineswhereex-
+vationofscholarlydocumentstructure. Thisre-
+ternal documents are used to improve factual
+portextendsanearlierretrieval-orientedparser
+groundingandcontextualrelevance. Inthesesys-
+evaluationintoareproducibleCSE195inges-
+tems, document ingestion is not a neutral prepro-
+tionbenchmark.
+cessingstep. ThewayaPDFisparseddetermines
+We implement a modular parser framework
+whattext,metadata,headings,tables,figures,and
+that standardizes execution across nine local
+citationsareavailabletodownstreamchunkingand
+PDFparsers: PyMuPDF,pdfplumber,PyPDF,
+ApacheTika,Unstructured,Docling,Marker, retrievalcomponents.
+MinerU,andGROBID.Theframeworkusesa ScientificPDFsareparticularlychallengingbe-
+sharedparserregistry,individualparserwrap- cause they often contain multi-column layouts,
+pers, a common extract(pdf_path) inter- pageheadersandfooters,sectionhierarchies,equa-
+face, normalized text outputs, artifact track-
+tions,figures,tables,andreferences. Flattextex-
+ing, and benchmark status reporting. On an
+traction can lose this structure, merge unrelated
+IEEE-stylescientificPDF,allnineparserssuc-
+regions, or introduce spacing artifacts. These er-
+cessfullyexecuteinthestabilizedJupyterHub
+rorscanthenpropagateintochunks,embeddings,
+environment. Thebenchmarkrecordsruntime,
+extractedcharactercount,outputfileinventory, searchresults,andgeneratedanswers. Document
+andqualitativeoutputpreviews. parsingresearchthereforeemphasizesthatuseful
+Theresultsshowacleartradeoffbetweenspeed parsing should preserve structural relationships,
+andstructuralrichness. Flattextparserssuch semanticorganization,andmachine-readablerep-
+as PyMuPDF, PyPDF, and pdfplumber run resentations such as Markdown, JSON, or XML
+quicklybutprovidelimitedstructuralpreserva- ratherthanmerelytranscribingtext(Zhangetal.,
+tion. Structure-awareparserssuchasDocling,
+2024).
+Marker,andMinerUproducericherMarkdown,
+This CSE 195 project focuses on Scriptorium
+layout, image, and artifact outputs at higher
+/ RefAIned, a research-oriented ingestion and re-
+runtimecost. GROBIDextractslesstotaltext
+trieval system. The goal is to move beyond ad
+but provides academically useful metadata-
+oriented structure. The benchmark also doc- hocparsertestingandcreateareproduciblebench-
+umentsexcludedparsers,includingNougatand markthatcansupportevidence-backedparserse-
+PaddleOCR,whosedependencyorruntimecon- lection. This report updates the earlier CSE 188
+straints made them unsuitable for the stable
+parserevaluationbyshiftingtheemphasisfroma
+shared environment. Overall, this work pro-
+smallretrievalexperimenttoareusableingestion
+videsareproducibleingestionbaselineforfu-
+infrastructure. Insteadofonlyaskingwhichparser
+tureretrieval,chunking,citation,andtraceabil-
+givesbetterretrievedchunks,thisworkaskshowa
+ity experiments in Scriptorium. This report
+focusesonparserexecution,outputnormaliza- practicalsystemcanconsistentlyrun,compare,and
+tion,artifacttracking,andinfrastructurereadi- inspectmultipleparsersunderasharedframework.
+
+--- PAGE 2 ---
+Thecontributionsofthisreportareasfollows: fullycaptureoutputquality: PyMuPDFachieved
+strong cosine similarity, while Docling produced
+• We implement a modular parser benchmark
+higher human-rated coherence. This motivated a
+with a shared registry, standardized parser
+deeperCSE195follow-upfocusedoninfrastruc-
+wrappers,normalizedoutputs,andparsersta-
+ture. Thecurrentprojectbuildsareusablebench-
+tusreporting.
+markthatcanrunmultipleparsersunderoneinter-
+face,saveoutputs,compareruntimeandcoverage,
+• Wesuccessfullyrunninelocalparsersonthe
+andsupportfutureretrievalexperiments.
+samescientificPDF:PyMuPDF,pdfplumber,
+PyPDF,Tika,Unstructured,Docling,Marker,
+3 SystemDesign
+MinerU,andGROBID.
+3.1 ParserFramework
+• Wecompareparseroutputsbyextractedchar-
+The benchmark is organized around a refactored
+actercount,runtime,artifactproduction,and
+parserframework. Theframeworkincludes:
+qualitativeoutputpreviews.
+• Wedocumentexcludedtoolsandenvironment • parsers/core/base.py: shared parser re-
+constraints, including Nougat, PaddleOCR, sulttypesandPDFvalidation.
+Uni-Parser/Uniparser,andPyMuPDF4LLM.
+• parsers/core/registry.py: parser regis-
+• We identify next steps for retrieval-focused trationanddependencymetadata.
+evaluation,includingchunkingcomparisons,
+• parsers/core/runner.py: benchmarkexe-
+top-kretrievaltests,andstructurepreservation
+cutionandoutputwriting.
+metrics.
+2 BackgroundandMotivation • parsers/implementations/: individual
+parserwrappers.
+2.1 DocumentParsingforRAG
+Each parser exposes a common
+RAGsystemstypicallyincludedocumentloading,
+extract(pdf_path) function and returns a
+parsing,chunking,embedding,retrieval,andgen-
+standardized ParserResult. This design allows
+eration. Many systems focus on the embedding
+the benchmark runner to execute different tools
+modelorretrievalalgorithm,butparseroutputqual-
+consistently even though their underlying APIs
+ity strongly shapes what information is available
+andoutputsdiffer.
+before embedding begins. If a parser loses head-
+ings, splits tables incorrectly, duplicates headers,
+3.2 OutputOrganization
+ormergescolumns,thoseartifactsbecomepartof
+theretrievalcorpus. Eachparserwritesanormalized.txtoutputinto:
+Documentparsingcanbeviewedasaspectrum.
+outputs/slam_llm/parser_outputs/
+Atoneendareflattextextractorsthatrecovertext
+Structure-awareparsersmayalsocreateparser-
+quickly with limited structural awareness. In the
+specific artifact folders. In the final benchmark,
+middlearesemi-structuredextractorsthatproduce
+theseinclude:
+readable text but still preserve limited document
+hierarchy. At the other end are structure-aware
+• docling_run/
+parsers that attempt to preserve sections, tables,
+figures,metadata,layoutinformation,andartifacts.
+• marker_run/
+ThisdistinctionmattersforresearchPDFsbecause
+the most useful context is often tied to structure, • mineru_run_txt/
+notjustrawtext.
+These folders preserve additional Markdown
+2.2 FromCSE188EvaluationtoCSE195
+files, JSON metadata, extracted images, layout
+Infrastructure
+PDFs, and intermediate artifacts. This is impor-
+The earlier CSE 188 paper evaluated how parser tant because a RAG system may eventually need
+choiceaffectedchunkcoherenceandretrievaluse- morethanplaintext: itmayneedtables,captions,
+fulness. Itfoundthatsimilarityscoresalonedidnot figures,references,andsourcetraceability.
+
+--- PAGE 3 ---
+Parser Category RoleinBenchmark Parser Characters Runtime(s) Type
+PyMuPDF Flattext Fastbaselineextraction
+PyMuPDF 88,199 0.09 Flattext
+pdfplumber Flattext Layout-sensitivetextbaseline
+PyPDF Flattext GeneralPDFtextbaseline pdfplumber 85,465 1.74 Flattext
+Tika Semi-structured Java-baseddocumentextraction PyPDF 88,394 0.54 Flattext
+Unstructured Structure-aware Element-labeledtextextraction Tika 90,660 0.09 Semi-structured
+Docling Structure-aware Markdown-orientedstructuredparsing
+Marker Structure-aware Markdownandartifactextraction Unstructured 95,836 4.56 Structure-aware
+MinerU Structure-aware Layout-awareparsingwithartifacts Docling 100,840 10.34 Structure-aware
+GROBID Structuredmetadata Scholarlydocumentandmetadataextraction Marker 102,133 40.50 Structure-aware
+MinerU 88,200 31.92 Structure-aware
+Table 1: The nine parsers included in the final stable GROBID 69,846 2.02 Structuredmetadata
+benchmark.
+Table 2: Final 9/9 parser benchmark results on the
+SLAM-LLMPDF.
+3.3 GROBIDServiceRequirement
+Most parsers run directly inside the Python envi-
+ronment,butGROBIDrequiresarunningservice.
+BecauseDockerwasunavailableintheJupyterHub
+environment,GROBID0.9.0wasbuiltfromsource
+andlaunchedwithJava21using:
+cd /home/jovyan/grobid-0.9.0
+export JAVA_HOME=/opt/conda
+export PATH=$JAVA_HOME/bin:$PATH
+./gradlew :grobid-service:run
+The benchmark verifies the service using
+Figure1:Extractedcharactercountbyparser. Structure-
+http://localhost:8070/api/isalive before
+awareparsersgenerallyproducedmoretext,whileGRO-
+runningtheparser.
+BIDproducedlesstextbecauseofitsscholarly-structure
+focus.
+4 BenchmarkSetup
+4.1 InputDocument
+5.2 CharacterCountComparison
+The benchmark uses the SLAM-LLM scientific
+Charactercountprovidesaroughindicationofex-
+PDF as the test document. This document is a
+tractioncoverage,butitisnotadirectqualitymet-
+realisticacademic-paperinputwithdensetechnical
+ric. Higher character count may indicate more
+content, multi-column layout, headings, authors,
+complete extraction, but it may also include du-
+abstract,figures,tables,andreferences.
+plicated headers, noisy OCR output, references,
+4.2 ParsersEvaluated captions, or formatting artifacts. In the final run,
+Marker produced the most text, followed by Do-
+Thefinalstablebenchmarkevaluatesnineparsers.
+cling and Unstructured. GROBID produced the
+TheseincludeestablishedPDF/textextractiontools,
+leasttext,whichisexpectedbecauseitemphasizes
+document extraction frameworks, and modern
+scholarlydocumentstructureandmetadatarather
+structure-awareparsers,includingPyMuPDF,pdf-
+thanmaximizingrawtextvolume.
+plumber,PyPDF,ApacheTika,Unstructured,Do-
+cling,Marker,MinerU,andGROBID(PyMuPDF,
+5.3 RuntimeComparison
+2026; jsvine, 2026; PyPDF, 2026; Apache Soft-
+The runtime comparison shows a clear tradeoff
+ware Foundation, 2026; Unstructured, 2026; Do-
+between simple extraction and heavier structure-
+clingProject,2026;Datalab,2026;OpenDataLab,
+awareparsing. PyMuPDF,Tika,andPyPDFwere
+2026; GROBID, 2026). Table 1 groups them by
+thefastest. MarkerandMinerUweretheslowest
+extractioncategory.
+because they perform more expensive document
+5 Results analysisandproduceadditionalartifacts.
+5.1 BenchmarkStatus 5.4 OutputInventory
+All nine selected parsers successfully ran on the The normalized output directory contains one
+sameinputPDF.Table2summarizesthefinalsta- .txt output per parser. Docling, Marker, and
+tus,extractedcharactercount,andruntime. MinerUalsoproduceartifactfolders. Inthefinal
+
+--- PAGE 4 ---
+alignedwithdocument elementsratherthanarbi-
+trarycharacterranges.
+6.4 Docling
+Doclingprovidesastrongbalancebetweenstruc-
+tural output and runtime. It produced one of the
+highest character counts while remaining much
+faster than Marker and MinerU. Its Markdown-
+styleoutputmakesitusefulforRAGpipelinesthat
+benefitfromheadingsandreadablestructure.
+Figure2: Runtimebyparser. Structure-awareparsers
+6.5 Marker
+generally require more time than flat text extractors
+becausetheyperformlayoutanalysis,modelinference, Markerproducedthelargestnormalizedtextoutput
+OCR-relatedsteps,orartifactgeneration.
+and generated additional artifacts. Its output pre-
+servedMarkdownformattingandextractedimages.
+The tradeoff is runtime: Marker was the slowest
+run, docling_run contained one Markdown arti-
+parser in the final benchmark. It is useful when
+fact, marker_run contained seven files including
+richer structure and artifact extraction are more
+Markdown, metadata, and extracted images, and
+importantthanspeed.
+mineru_run_txt contained thirty files including
+Markdown,JSON,imageassets,andlayoutPDFs.
+6.6 MinerU
+Thisartifactinventoryisimportantbecausethe
+MinerUrequiredthemostsetupworkbutsuccess-
+benchmark is not only measuring text extraction.
+fullyranusingthetxtmethodandpipelineback-
+Itisalsoidentifyingwhichtoolsproducereusable
+end. ItproducedMarkdown,JSON,images,layout
+structuraloutputsthatcouldsupportlaterretrieval,
+PDFs,andotherartifacts. MinerUisvaluablefor
+citation,ormultimodalprocessing.
+layout-awareparsingandmultimodal-readyinges-
+tion,thoughithashigherruntimeandenvironment
+6 QualitativeFindings
+complexity.
+6.1 FlatTextParsers
+6.7 GROBID
+PyMuPDF, pdfplumber, and PyPDF are useful
+GROBIDproducedfewertotalcharactersthanthe
+baselinesbecausetheyarefastandsimple. How-
+otherparsers,butitisvaluableforacademicmeta-
+ever, they provide limited structural preservation.
+dataandscholarlydocumentstructure. Itextracts
+Theymayloseheadinghierarchy,mergetextacross
+title,authors,references,andstructuredacademic
+columns,orflattentablesandfigures. pdfplumber
+text. Itsmaintradeoffisthatitrequiresarunning
+inparticularcanpreservesomelayoutsignalsbut
+serviceatlocalhost:8070.
+issensitivetomulti-columnformattingandspacing
+artifacts.
+7 ExcludedParsersandEnvironment
+Constraints
+6.2 Tika
+Tikaprovidesasemi-structuredbaselineandruns 7.1 Nougat
+quicklyonceJavaisavailable. Itproducesreadable Nougatwastestedandproduced.mmdoutput,butit
+textandcanhandledocument-levelextraction,but requiredolderdependencypins,especiallyanolder
+itdoesnotpreserverichscholarlystructureorarti- transformers version. That conflicted with the
+factoutputsinthesamewayasmodernstructure- modernparserstackusedbyDocling,Marker,and
+awareparsers. MinerU.Itwasremovedfromthefinalbenchmark
+topreserveaclean9/9stablerun.
+6.3 Unstructured
+7.2 PaddleOCR
+Unstructured provides element-level labels such
+as headers, narrative text, and plain text. This PaddleOCRwasconsideredasanOCR/layoutbase-
+makesitmoreusefulthanflatextractionfordown- line. Itinstalledanddownloadedmodelfiles,and
+streamchunkingbecausechunkscanpotentiallybe PDFpagesweresuccessfullyrenderedtoimages
+
+--- PAGE 5 ---
+withPyMuPDF.However,runtimeinferencefailed • Comparetop-k retrievalqualityusingafixed
+intheJupyterHubenvironmentduetoaPaddlePad- queryset.
+dle backend issue. Because it required separate
+• Evaluate structure preservation, including
+environment isolation, it was excluded from the
+headings,tables,captions,references,andfig-
+stablebenchmark.
+uretext.
+7.3 Uni-Parser/Uniparser
+• Track runtime and artifact size as practical
+Theoriginallylinkedcjm-sfw/Uniparserproject engineeringtradeoffs.
+wasnotaPDFparser. Itfocusedonimage/human
+• Explore environment isolation for
+parsing. Aseparatedocument-orientedUni-Parser
+dependency-sensitive parsers such as
+existsintheliteratureandisrelevantasfuturework,
+NougatandPaddleOCR.
+butnosimplelocalCLIorpackagewasavailable
+forthisbenchmark.
+10 Conclusion
+7.4 PyMuPDF4LLM This project demonstrates that document parsing
+PyMuPDF4LLMwasconsideredbutexcludedbe- should be treated as a first-class component of
+causeitoverlapsheavilywithPyMuPDF.Sincethe research-focused RAG infrastructure. The final
+benchmark already includes PyMuPDF as a flat benchmark successfully runs nine local parsers
+textbaseline,addingPyMuPDF4LLMwouldnot underastandardizedinterfaceandrecordsoutput
+addasufficientlydistinctparsercategory. coverage,runtime,artifacts,andqualitativediffer-
+ences. Theresultsshowthatflattextparsersarefast
+8 ConnectiontoScriptoriumRoadmap andusefulbaselines,whilestructure-awareparsers
+providericheroutputsthatarebetteralignedwith
+This benchmark supports the broader Scripto-
+downstreamretrievalandtraceabilityneeds.
+riumroadmapbyturningparserselectionintoan
+Thebenchmarkalsoshowsthatparserselection
+evidence-backedengineeringdecision. Aresearch-
+is not only a quality question but an infrastruc-
+focused RAG system needs more than raw ex-
+ture question. Some tools require Java services,
+tractedtext. Itneedsreliableingestion,metadata,
+somerequiremodelinference,andsomeintroduce
+sourcetraceability,reproducibility,andcleartrade-
+dependencyconflicts. Bydocumentingthesetrade-
+offsbetweenruntimeandstructurepreservation.
+offs and creating a reproducible benchmark, this
+Theparserbenchmarkestablishesafoundation
+work provides a practical foundation for future
+for future Scriptorium work in three ways. First,
+Scriptoriumexperimentsinchunking,retrieval,ci-
+it provides a standardized framework for adding
+tationgrounding, andsource-awaredocumentin-
+orremovingparsers. Second,itsavesnormalized
+telligence.
+outputsandartifactsthatcanbereusedforchunk-
+ingandretrievalexperiments. Third,itdocuments
+environmentconstraintssofuturedevelopmentcan References
+decidewhenparserisolationisnecessary.
+ApacheSoftwareFoundation.2026. Apachetikadoc-
+umentation. https://tika.apache.org/. Ac-
+9 NextSteps cessedMay2026.
+Thenextstageistomovebeyondextractionsuccess Datalab. 2026. Marker: Convert documents to mark-
+down, json, and html quickly. https://github.
+andevaluateparserqualityforretrieval. Suggested
+com/datalab-to/marker. AccessedMay2026.
+nextstepsinclude:
+Jacob Devlin, Ming-Wei Chang, Kenton Lee, and
+KristinaToutanova.2019. Bert: Pre-trainingofdeep
+• Chunkeachparseroutputusingaconsistent
+bidirectionaltransformersforlanguageunderstand-
+chunkingstrategy.
+ing. NAACL.
+• Measure chunk counts and average chunk DoclingProject.2026. Doclingdocumentation. https:
+lengthacrossparsers. //docling-project.github.io/docling/. Ac-
+cessedMay2026.
+• Run embedding-based retrieval over each GROBID. 2026. Grobid documentation. https://
+parseroutput. grobid.readthedocs.io/. AccessedMay2026.
+
+--- PAGE 6 ---
+jsvine. 2026. pdfplumber: Plumb a pdf for detailed
+informationabouteachtextcharacter,rectangle,and
+line. https://github.com/jsvine/pdfplumber.
+AccessedMay2026.
+OpenDataLab. 2026. Mineru: Document extrac-
+tion and conversion tool. https://github.com/
+opendatalab/MinerU. AccessedMay2026.
+PyMuPDF.2026. Pymupdfdocumentation. https://
+pymupdf.readthedocs.io/. AccessedMay2026.
+PyPDF.2026. Pypdfdocumentation. https://pypdf.
+readthedocs.io/. AccessedMay2026.
+Unstructured. 2026. Unstructured documentation.
+https://docs.unstructured.io/. AccessedMay
+2026.
+Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob
+Uszkoreit,LlionJones,and1others.2017. Attention
+isallyouneed. NeurIPS.
+QintongZhang,BinWang,VictorShea-JayHuang,Jun-
+yuanZhang,ZhengrenWang,HaoLiang,Conghui
+He, and Wentao Zhang. 2024. Document parsing
+unveiled: Techniques,challenges,andprospectsfor
+structured information extraction. arXiv preprint
+arXiv:2410.21169.

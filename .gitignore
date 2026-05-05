@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.venv/
+venv/
+env/
+
+# Jupyter
+*/.ipynb_checkpoints/
+
+# Local scratch/testing
+tests/
+OLD/
+.OLD/
+
+# GROBID source/build folder, keep local only
+grobid-0.9.0/
+
+# Large/temporary archives
+*.zip
+
+# Local caches/models
+.cache/
+.paddlex/
+nltk_data/
+
+# OS/editor
+.DS_Store
+.vscode/
+.idea/
+
+# Optional: ignore heavy parser artifact folders
+# Keep normalized .txt outputs and parser_status.csv, but avoid large artifact folders
+outputs/*/parser_outputs/docling_run/
+outputs/*/parser_outputs/marker_run/
+outputs/*/parser_outputs/mineru_run_txt/

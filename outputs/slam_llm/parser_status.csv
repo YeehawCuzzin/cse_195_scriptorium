@@ -1,0 +1,10 @@
+document,parser,status,chars,runtime_seconds,type,requires,error,output_path
+slam_llm.pdf,pymupdf,success,88199,0.08,flat_text,,,/home/jovyan/outputs/slam_llm/parser_outputs/pymupdf.txt
+slam_llm.pdf,pdfplumber,success,85465,1.8,flat_text,,,/home/jovyan/outputs/slam_llm/parser_outputs/pdfplumber.txt
+slam_llm.pdf,pypdf,success,88394,0.53,flat_text,,,/home/jovyan/outputs/slam_llm/parser_outputs/pypdf.txt
+slam_llm.pdf,tika,success,90660,0.11,semi_structured,"tika, java",,/home/jovyan/outputs/slam_llm/parser_outputs/tika.txt
+slam_llm.pdf,unstructured,success,95836,5.07,structure_aware,unstructured,,/home/jovyan/outputs/slam_llm/parser_outputs/unstructured.txt
+slam_llm.pdf,docling,success,100840,10.59,structure_aware,docling,,/home/jovyan/outputs/slam_llm/parser_outputs/docling.txt
+slam_llm.pdf,marker,success,102133,40.08,structure_aware,marker-pdf,,/home/jovyan/outputs/slam_llm/parser_outputs/marker.txt
+slam_llm.pdf,mineru,success,88200,31.78,structure_aware,mineru CLI,,/home/jovyan/outputs/slam_llm/parser_outputs/mineru.txt
+slam_llm.pdf,grobid,success,69846,1.97,structured_metadata,GROBID server at localhost:8070,,/home/jovyan/outputs/slam_llm/parser_outputs/grobid.txt

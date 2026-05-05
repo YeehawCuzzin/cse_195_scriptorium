@@ -1,0 +1,1231 @@
+
+--- PAGE 1 ---
+This article has been accepted for publication in IEEE Journal of Selected Topics in Signal Processing. This is the author's version which has not been fully edited and
+content may change prior to final publication. Citation information: DOI 10.1109/JSTSP.2026.3653157
+JOURNALOFLATEXCLASSFILES,VOL.14,NO.8,AUGUST2021 1
+SLAM-LLM: A Modular, Open-Source Multimodal
+Large Language Model Framework and Best Practice
+for Speech, Language, Audio and Music Processing
+Ziyang Ma, Guanrou Yang, Wenxi Chen, Zhifu Gao, Yexing Du, Xiquan Li, Zhisheng Zheng, Haina Zhu, Jianheng
+Zhuo, Zheshu Song, Ruiyang Xu, Tiranrui Wang, Yifan Yang, Yanqiao Zhu, Zhikang Niu, Liumeng Xue, Yinghao
+Ma, Ruibin Yuan, Shiliang Zhang, Kai Yu, Eng Siong Chng, Xie Chen
+Abstract—The recent surge in open-source Multimodal Large that integrate various forms of input such as text, vision, as
+LanguageModels(MLLM)frameworks,suchasLLaVA,provides well as audio. While recent open-source frameworks, such
+a convenient kickoff for artificial intelligence developers and
+as LLaVA [1] and OpenFlamingo [2] have demonstrated
+researchers. However, most of the MLLM frameworks take
+remarkable capabilities in vision-language modeling, they
+vision as the main input modality, and provide limited in-depth
+support for the modality of speech, audio, and music. This remain largely vision-centric. These frameworks offer limited
+situation hinders the development of audio-language models, and support for non-visual modalities, particularly in the areas of
+forces researchers to spend a lot of effort on code writing and speech,audio,andmusicprocessing.Thislackofnativesupport
+hyperparameter tuning. We present SLAM-LLM, an open-source
+presents significant challenges for researchers working on audi-
+deep learning framework designed to train customized MLLMs,
+tory tasks, often forcing them to retrofit vision-based systems
+focusedonspeech,language,audio,andmusicprocessing.SLAM-
+LLM provides a modular configuration of different encoders, through cumbersome adaptations, resulting in inefficiencies
+projectors, LLMs, and parameter-efficient fine-tuning plugins. and fragmented development workflows.
+SLAM-LLM also includes detailed training and inference recipes
+To address these limitations, we introduce SLAM-LLM: a
+for mainstream tasks, along with high-performance checkpoints
+modular, open-source framework for Multimodal Large
+likeLLM-basedAutomaticSpeechRecognition(ASR),Automated
+Audio Captioning (AAC), and Music Captioning (MC). Some of Language Models (MLLMs), with a specific focus on
+these recipes have already reached or are nearing state-of-the- speech, audio, and music. SLAM-LLM is designed to
+art performance, and some relevant techniques have also been lower the barrier for constructing, training, and deploying
+acceptedbyacademicpapers.WehopeSLAM-LLMwillaccelerate
+LLM-based systems that process audio-related modalities.
+iteration, development, data engineering, and model training for
+Its core architecture follows a clean encoder–projector–LLM
+researchers. We are committed to continually pushing forward
+audio-based MLLMs through this open-source framework, and modular design, enabling seamless customization of model
+call on the community to contribute to the LLM-based speech, componentsthroughYAMLconfigurationfiles.Theframework
+audio and music processing. supportsawiderangeofpretrainedencoders(e.g.,Whisper[3],
+Index Terms—Multimodal Large Language Model, Large Lan- HuBERT[4],BEATs[5],MERT[6]),projectionmodules(MLP
+guage Model, Framework, Toolkit, Speech Processing, Language layers, CNN layers, Q-Former [7]), and LLM backbones (e.g.,
+Processing, Audio Processing, Music Processing LLaMA [8], [9], Vicuna [10], Qwen [11]). It also incorporates
+I. INTRODUCTION parameter-efficient fine-tuning (PEFT) strategies such as Low-
+Rank Adaptation (LoRA) and prefix-tuning, making it suitable
+The rapid advancement of Large Language Models (LLMs)
+forlow-resourceanddomain-specificadaptation.SLAM-LLM’s
+has catalyzed the development of multimodal learning systems
+design also addresses common engineering challenges in
+ZiyangMa,GuanrouYang,WenxiChen,XiquanLi,HainaZhu,Jianheng multimodal modeling, such as handling variable-length inputs
+Zhuo,ZheshuSong,RuiyangXu,YifanYang,YanqiaoZhu,ZhikangNiu,Kai
+and efficient fine-tuning, while supporting rapid prototyping
+Yu,andXieChenarewiththeX-LANCELab,SchoolofComputerScience,
+MoEKeyLabofArtificialIntelligenceShanghaiJiaoTongUniversity,Shang- and reproducibility.
+hai200240,China(e-mail:{zym.22,yangguanrou,1029713857,mtxiaoxi55, Beyondarchitecturalflexibility,SLAM-LLMprovidesacom-
+hainazhu,zzasdf,songzheshu,xry2022,yifanyeung,1850432206,zhikangniu,
+prehensive suite of training recipes and pretrained checkpoints
+kai.yu,chenxie95}@sjtu.edu.cn).ZhifuGaoiswiththeTongyiLab,Alibaba
+Group,Hangzhou311121,China.(e-mail:zhifu.gzf@alibaba-inc.com).Yexing for a variety of key tasks: Automatic Speech Recognition
+DuiswiththePengChengLaboratory,Guangdong518055,China.(e-mail: (ASR), Speech-to-Text Translation (S2TT), Speech Emotion
+yxdu@ir.hit.edu.cn).ZhishengZhengiswiththeUniversityofTexasatAustin,
+Captioning (SEC), Automated Audio Captioning (AAC), and
+Texas78712,UnitedStates.(e-mail:zszheng@utexas.edu).TianruiWangis
+withtheTianjinUniversity,Tianjin300350,China.(wangtianrui@tju.edu.cn). Music Captioning (MC). Extensive experiments across these
+LiumengXueandRuibinYuanarewiththeHongKongUniversityofScience tasks reveal a series of key insights.
+andTechnology,Hongkong999077,China.(e-mail:{lmxue,ryuanab}@ust.hk).
+YinghaoMaiswiththeQueenMaryUniversityofLondon,EastLondonE1 Inbrief,SLAM-LLMmakesseveralsignificantcontributions:
+4NS,England.(e-mail:yinghao.ma@qmul.ac.uk).ShiliangZhangiswiththe
+UniversityofScienceandTechnologyofChina,Hefei230052,China.(e-mail: 1) A unified, flexible, and extensible framework for devel-
+zsl2008@ustc.edu.cn).EngSiongChngiswiththeNanyangTechnological oping LLM-based models for audio-related modalities;
+University,639956,Singapore.(e-mail:ASESChng@ntu.edu.sg).
+2) Extensive modular support for diverse encoders, projec-
+Correspondingauthor:Prof.XieChen
+Opensourceathttps://github.com/X-LANCE/SLAM-LLM tors, and large language models;
+This work is licensed under a Creative Commons Attribution 4.0 License. For more information, see https://creativecommons.org/licenses/by/4.0/
+
+--- PAGE 2 ---
+This article has been accepted for publication in IEEE Journal of Selected Topics in Signal Processing. This is the author's version which has not been fully edited and
+content may change prior to final publication. Citation information: DOI 10.1109/JSTSP.2026.3653157
+JOURNALOFLATEXCLASSFILES,VOL.14,NO.8,AUGUST2021 2
+3) A library of curated training and inference recipes across across sequences of interleaved image-text pairs and offering
+speech, audio, and music tasks; pre-trained models at various scales.
+4) State-of-the-art results across benchmarks, particularly However, most existing toolkits primarily target text or
+in speech recognition and audio captioning; vision tasks, offering limited or no support for non-visual
+5) Open-source implementation encouraging community modalities such as speech, audio, and music. As a result,
+collaboration and rapid innovation. researchers in auditory domains—e.g., speech recognition,
+SLAM-LLM bridges a major gap in the current MLLM audio captioning, or music analysis—must often repurpose
+ecosystem and promotes the development for future progress tools whose architectures and pipelines are tightly coupled to
+in general-purpose audio-language models (ALMs). By open- vision or text, requiring substantial adaptation effort. This lack
+sourcing the framework and accompanying recipes, SLAM- of native support hinders progress in building efficient audio-
+LLM invites the broader community to contribute to and language models. While toolkits like ESPnet1 focus on end-
+accelerate innovation in this important yet limitedly developed to-end speech systems and Fairseq2 focus on speech sequence
+area of multimodal AI. modeling,theydonotadoptanLLM-centricdesign,whichisa
+paradigm shift in SLAM-LLM. The framework addresses this
+gap with a modular design that seamlessly integrates speech,
+II. MULTIMODALLARGELANGUAGEMODELFRAMEWORK
+audio, and music encoders with LLMs. In SLAM-LLM, all
+ThedevelopmentofLLMshascatalyzedarapidlyexpanding auditory tasks are unified into an auto-regressive generation
+ecosystem of open-source toolkits designed to support the process, allowing researchers to leverage the strong text
+training, fine-tuning, and deployment of LLMs across a variety power of LLMs while modularly incorporating proven speech
+of modalities. In particular, the recent surge of interest in processing best practices to guide the generative performance.
+multimodal learning has motivated the emergence of several Itsflexiblearchitecturesupportseasycustomizationofencoders,
+frameworks that extend LLMs beyond pure text understanding. projectors, and LLMs, and is compatible with PEFT [22],
+Among these toolkits, a number of general-purpose LLM FSDP [23], and DeepSpeed [24]. With comprehensive training
+infrastructure frameworks have been proposed to facilitate and inference recipes, SLAM-LLM accelerates research and
+model development and customization. Notably, LLaMA- promotes community-driven development via its open-source
+recipes [12], an official collection of implementations and release.
+usage patterns for the LLaMA model family released by
+Meta, provides end-to-end support for both text-based and III. DESIGNOFSLAM-LLM
+visual-language models. LLaMA-Adapter [13] introduces a
+parameter-efficient tuning strategy for adapting frozen LLaMA YYA YAM AML ML F L Fi l Fieliele CCu Cus usto stot m omi m zize ized ed R d Re Rec ecip cipe ipee
+models to instruction-following and, in its extended version,
+visual modalities, by introducing a vision-language alignment MM W o M Wh do Sia e sh do ipi l le s d oe p C r l r e - e o 7L Cl r Ba no L C rag fino reg fig n -ve fig 3-v g 3 Model Zoo
+mechanism. LLaMA2-Accessory [14] further generalizes this LineaMr MiPsrti orsat je rl-a c7t lB- o 7 r B    L V Q L i w c a u e M n n
+  
+line of work, offering a comprehensive toolbox for pretraining, WhLiisnL pei e nar er a L Pr ar r Pog rjeeo -cj v et3octror .   .  L Q i - n F e o a r r m P e r r
+ ojecto 
+.. 
+Whispe 
+fine-tuning,andinferenceacrossbothunimodalandmultimodal TrTarT ian ria inn iin gni gn C g oC noC finofig nfigg    H B EA E u  A B T E  R 
+settings, with native support for integrating visual encoders LoLRoA LRoARA .   .. M M E u R Q
+ 
+such as CLIP [15] and DINOv2 [16]. In parallel, LLaMA-
+SFSTFSTFT
+Factory[17]providesaunifiedandextensibletraininginterface DDat Daata aC t a oC noC finofig nfigg  Librispe D e a c  tasets
+forover100foundationmodels,includingmultimodalbranches SpSepe Sec peh ec e Dhc aDh t aa Dts aae tst aestet .   .  G Au ig d a i s o p C e a e p c  h
+
+that support image, audio, and video tasks via task-specific GCigoC amo S mmpe moenc o hVn o 2 Vicoeice .    .  C M LP lo u -M t s h C u o
+ a s p ic  Caps
+
+...
+adapters and fine-tuning templates. Additionally, LMFlow [18]
+Fig. 1: A brief workflow in the SLAM-LLM framework. By
+andLitGPTofferefficientsolutionsforfinetuningandinference,
+specifying model, training, and data configurations in a YAML
+focusing on memory optimization, scalability, and support for
+file, customized requirements are met efficiently. The depicted
+multimodal inputs.
+example demonstrates an LLM-based Southeast Asian ASR
+In contrast to these infrastructure-focused toolkits, another
+model using a Southeast Asian language LLM Sailor-7B and
+line of work has produced end-to-end multimodal LLMs
+corresponding speech dataset GigaSpeech 2.
+designed specifically for vision-language models (VLMs).
+MiniGPT-4 [19] demonstrates that aligning a pretrained visual
+encoder with a frozen language model using a lightweight A. Overview of SLAM-LLM
+projection layer enables powerful vision-language dialogue
+SLAM-LLM allows users to configure customized MLLMs
+capabilities. LLaVA [1] adopts a two-stage training strategy
+through a YAML file, significantly reducing the burden
+that combines visual feature alignment with instruction tuning,
+on model construction. Users specify the necessary model
+resultinginahighlycapableopen-sourcevisualdialoguemodel.
+components, training strategies, and data formats in the YAML
+TinyLLaVA [20] builds on this approach with a focus on
+file, enabling SLAM-LLM to tailor the training and inference
+model efficiency, achieving competitive multimodal perfor-
+according to specific customized requirements.
+mancewithsignificantlyreducedparametercounts.Meanwhile,
+OpenFlamingo [2] reimplements DeepMind’s Flamingo [21] 1https://github.com/espnet/espnet
+architecture for open access, supporting few-shot learning 2https://github.com/facebookresearch/fairseq
+This work is licensed under a Creative Commons Attribution 4.0 License. For more information, see https://creativecommons.org/licenses/by/4.0/
+
+--- PAGE 3 ---
+This article has been accepted for publication in IEEE Journal of Selected Topics in Signal Processing. This is the author's version which has not been fully edited and
+content may change prior to final publication. Citation information: DOI 10.1109/JSTSP.2026.3653157
+JOURNALOFLATEXCLASSFILES,VOL.14,NO.8,AUGUST2021 3
+Figure 1 exemplifies how SLAM-LLM operates using an C. Task Support
+LLM-based low-resource language ASR model. Specifically,
+While SLAM-LLM is primarily designed to facilitate LLM-
+duringtraining,theYAMLfiledesignatesWhisperLarge-v3[3]
+based understanding tasks (i.e., mapping audio inputs to
+as the speech encoder, a linear layer as the projector, and the
+natural language text), it has been extended to support speech
+Southeast Asian language model Sailor-7B [25] as the LLM,
+generation and multi-turn dialogue to further its utility as a
+using the GigaSpeech 2 [26] dataset for LoRA fine-tuning.
+general-purpose framework. For generation tasks, the frame-
+This setup effectively configures an LLM-based Southeast
+work supports codec-based text-to-speech (TTS) models such
+Asian ASR model. For the trained model, only the parameters
+as VALL-E X [27], leveraging its native support for codec
+tuned (such as the projector and LoRA) need to be saved, and
+language models. Furthermore, SLAM-LLM incorporated
+treatedasgeneratedassets.Duringinference,othercomponents
+SLAM-Omni [28], an end-to-end, multi-turn speech dialogue
+can be fetched from the Model Zoo and assembled along
+system, processing continuous speech representations and
+with generated assets according to the configuration, greatly
+generating discrete speech tokens as output. Such a design
+enhancing flexibility in the process of development.
+demonstratestheframework’sflexibilityinsupportingcomplex,
+interaction-oriented applications that go beyond static tasks
+Encoder LLM
+PEFT 🔥/❄ PEFT 🔥/❄ like automated audio captioning or speech recognition.
+LoRA, Adapter, Prefix-Tuning ... LoRA, Adapter, Prefix-Tuning ...
+Speech Encoder
+W em hi o s t p i e o r n , 2 H v u e B c E , A R V T, - W H a u v B L E M RT , data2vec, Projector 🔥 L L a La rg M e A L , a V n i g c u u a n g a e , Q M w o e d n e , l ChatGLM
+Language Encoder Variable Length Projection
+IV. LLM-BASEDSPEECHPROCESSING
+G2P, GPT-2, TinyLlama, LLaMA Linear, CNN
+Codec Language Model
+VALL-E, VALLE-X
+A. Automatic Speech Recognition (ASR)
+Audio Encoder Fixed Length Projection
+BEATs, EAT, Spatial-AST, CLAP Q-Former
+Symbolic Music Language Model
+MuPT a) Model setup: We investigate two types of speech
+Music Encoder
+MERT, MusicFM, MuQ encoders: supervised models trained on large-scale speech-
+text pairs and self-supervised models trained on unlabeled
+Fig. 2: SLAM-LLM modularizes the Encoder-Projector-LLM
+speech. For supervised encoders, we use the Whisper [3]
+three-part components, which are assembled according to the
+family (tiny to large-v2), retaining only the encoder as a
+configuration at training and inference time.
+feature extractor. For self-supervised encoders, we evaluate
+HuBERT [4] and WavLM [29] at multiple scales, including
+both pre-trained and fine-tuned versions. Base models are
+B. Modular Design trained on the 960-hour LibriSpeech [30], while larger ones
+A distinguishing feature of SLAM-LLM is its modular use LibriLight [31] (60k hours for HuBERT; 94k hours +
+design, which qualifies it as a framework rather than a mere VoxPopuli [32] + GigaSpeech [33] for WavLM). HuBERT also
+model.AsillustratedinFigure2,SLAM-LLMdecomposesthe includesX-Largevariants,amongthelargestpubliclyavailable.
+MLLM into three decoupled components: Encoder, Projector, ForLLMs,weconsiderbothpre-trainedandchat-basedvariants
+and LLM. Each component can be individually specified if with supervised fine-tuning and RLHF. The pre-trained models
+and how to be tuned according to the training configuration. include TinyLLaMA (1.1B) [34] and LLaMA-2 (7B) [9]; chat
+Morespecifically,theencoderservesasaperceiverofsignals, models include TinyLLaMA-Chat (1.1B), LLaMA-2-Chat (7B),
+supporting various types of encoders for speech, language, and Vicuna (7B) [10]. All encoder outputs are at 50 Hz and
+audio, and music. The projector bridges the encoder and downsampled to 10 Hz before feeding into the LLM. The
+the LLM. SLAM-LLM provides support for variable-length projector uses a hidden size of 2048; encoder output and
+projection, such as the linear projector, as well as fixed-length LLM input dimensions vary by model. The training recipes
+projection like Q-Former. The LLM leverages its extensive and model checkpoints can be found here3. To address the
+knowledge and generation capabilities to produce high-quality practical requirements for real-world deployment, we report
+outputs.WithinSLAM-LLM,diversetypesoflanguagemodels the compute resources for a representative task using a 7B-
+are supported, including text language models, codec language scale LLM backbone: while training configurations may vary
+models, and symbolic music language models, catering to the slightly between experiments to ensure peak performance, the
+customized needs in the fields of speech, audio, and music. underlying resource requirements remain similar. Training an
+Based on the modular design of SLAM-LLM, we have LLM-based model on 1,000 hours of speech data for 1 epoch,
+provided various recipes and checkpoints for implementing while keeping the LLM and encoder frozen and updating only
+differenttasks.Inthefollowingexperimentsections,wepresent theprojector,requiresapproximately4hoursusing4×NVIDIA
+fundamental results for most classic tasks in detail, prioritize A100 (80GB) GPUs.
+using mainstream model components wherever possible, and b) Datasets: WeusetheLibriSpeech[30]benchmarkwith
+conduct large-scale experiments. By comparing and analyzing 960 hours of training data, without augmentation or splicing.
+various experimental results, we derive several empirical Validation and testing are conducted on the 10-hour dev-other,
+insights. These insights not only guide the optimization of test-clean, and test-other subsets.
+existing systems but also lay the foundation for developing
+new components. Furthermore, these results can serve as a 3https://github.com/X-LANCE/SLAM-LLM/tree/main/examples/asr
+robust baseline reference for future research and applications. librispeech
+This work is licensed under a Creative Commons Attribution 4.0 License. For more information, see https://creativecommons.org/licenses/by/4.0/
+
+--- PAGE 4 ---
+This article has been accepted for publication in IEEE Journal of Selected Topics in Signal Processing. This is the author's version which has not been fully edited and
+content may change prior to final publication. Citation information: DOI 10.1109/JSTSP.2026.3653157
+JOURNALOFLATEXCLASSFILES,VOL.14,NO.8,AUGUST2021 4
+TABLE I: Different combinations of supervised speech encoders and LLMs to conduct LLM-based ASR. We show results of
+Whisper models with different sizes on LLMs of different scales.
+Pre-trainedModel ChatModel
+SpeechEncoder TinyLLaMA-1.1B LLaMA-2-7B TinyLLaMA-Chat-1.1B LLaMA-2-Chat-7B Vicuna-v1.5-7B
+clean other clean other clean other clean other clean other
+Whisper-tiny 12.72 21.64 16.16 25.17 9.55 21.01 8.97 18.77 7.07 16.01
+Whisper-base 7.35 15.89 17.46 21.84 7.03 15.92 6.37 12.98 5.07 13.07
+Whisper-small 6.61 11.81 6.41 10.88 5.94 11.5 4.51 8.94 4.19 9.50
+Whisper-medium 4.65 8.95 3.35 6.10 5.01 8.67 2.71 6.37 2.72 6.79
+Whisper-large 4.39 8.22 3.01 7.15 4.33 8.62 2.72 6.79 2.58 6.47
+TABLE II: Explore the performance with different SSL speech
+c) Experiments on different supervised speech encoders:
+encoders for LLM-based ASR. LS-960 means the Librispeech
+Table I presents ASR results across various combinations of
+960 hours dataset. FT donates Fine-tuning.
+supervised speech encoders and LLMs, highlighting several
+key findings. First, ASR performance improves with larger Speech Encoder Hidden Projector WER(%) ↓
+Whisper encoders. For example, using TinyLLaMA-1.1B, the Encoder Params Size Params test-clean test-other
+test-clean WER drops from 12.72 (Whisper-tiny) to 4.39 HuBERTBase 94.70M 768 16.26M 4.43 10.72
+WavLMBase 94.38M 768 16.26M 4.14 9.66
+(Whisper-large), showing that larger encoders better capture
+HuBERTLarge 316.61M 1024 18.88M 4.53 8.74
+speechfeatures.However,returnsdiminishwithsize:theWER +LS-960FT 316.61M 1024 18.88M 2.10 4.26
+improvement from Whisper-medium (4.65) to Whisper-large WavLMLarge 315.45M 1024 18.88M 2.13 4.73
+(4.39)ismarginal.Second,chatmodelsconsistentlyoutperform +LS-960FT 315.45M 1024 18.88M 1.96 4.18
+HuBERTX-Large 964.32M 1280 21.50M 2.41 4.49
+pre-trained LLMs across all encoder sizes. For instance, with
++LS-960FT 964.32M 1280 21.50M 1.84 3.39
+Whisper-large, LLaMA-2-7B yields a test-clean WER of 3.01,
+while LLaMA-2-Chat-7B improves to 2.72. This suggests SFT
+enhances the model’s ability to treat speech embeddings as a
+system-level techniques—SpecAugment, speed perturbation,
+form of ”language”, benefiting from translation-like learning
+EMA averaging—and often fuse in-domain LMs trained on
+during fine-tuning. Finally, with Whisper-large fixed, Vicuna-
+LibriSpeech text. Despite forgoing such engineering, our
+7B achieves the best results, reaching a 2.58 WER on test-
+LLM-based model outperforms the best of these specialist
+clean—surpassing both LLaMA-2-7B (3.01) and LLaMA-2-
+systems. However, SSL models like HuBERT-large/x-large
+Chat-7B (2.72). This indicates that Vicuna, fine-tuned on user-
+implemented with Fairseq and WavLM-large implemented
+shared conversational data, generalizes more effectively.
+with UniSpeech, pre-trained on larger unlabeled datasets and
+d) Experiments on different self-supervised speech en-
+paired with in-domain LMs, outperform our model on the
+coders: Table II analyzes self-supervised speech encoders for
+noisy test-other subset. These gains are largely attributable to
+LLM-based ASR, using Vicuna-7B-v1.5 as the fixed LLM.
+LM integration, suggesting that domain-specific LLM fine-
+WER generally improves with larger encoder sizes, mirroring
+tuning may offer similar improvements, albeit at the cost
+trends observed with supervised models. At the base scale
+of generalization. Compared to general-purpose models, our
+( 95M parameters, 768 hidden size), HuBERT and WavLM
+system surpasses Whisper-large-v2, the stronger Whisper-
+performonparwithWhisper-small,showingnoclearadvantage
+large-v3, and OWSM-v3.1, a top academic baseline. These
+for self-supervised learning. However, at 300M parameters,
+results highlight the effectiveness of our LLM-based approach,
+WavLM Large surpasses all supervised encoders in TableI,
+achieving competitive or superior ASR performance without
+including Whisper-medium (300M) and Whisper-large (600M),
+heavy engineering or massive pre-training.
+while HuBERT’s gains from Base to Large are more modest.
+Fine-tuning HuBERT Large on LibriSpeech yields substantial f) Experiments on minority language datasets: Beyond
+improvements, achieving 2.10% WER on test-clean and 4.26% high-resourcelanguageslikeEnglishandChinese,low-resource
+on test-other—outperforming WavLM Large. Scaling further speechrecognition remainsa major challenge.This experiment
+to HuBERT X-Large ( 1B parameters, fine-tuned) delivers targets minority Southeast Asian languages: Thai (th), Viet-
+the best results: 1.84% WER on test-clean and 3.39% on test- namese (vi), and Indonesian (id), using GigaSpeech 2 [26]
+other,representingrelativereductionsof28.7%and47.4%over for both training and evaluation. To mimic real-world low-
+Whisper-large. These findings underscore the strong benefits resource conditions, training data is limited to 200 hours per
+of scaling and fine-tuning SSL encoders for LLM-based ASR. language. Our model uses the Whisper large-v3 encoder [3],
+e) Comparison with Non-LLM-based ASR models: ReLU-activatedMLPlayersastheprojector,andSailor-7B[25]
+Table III compares our LLM-based ASR model (SLAM- as the LLM. To improve performance, we partially fine-tune
+LLM) with state-of-the-art NN-based systems, including spe- the encoder by freezing its first 30 layers and updating only
+cialist models trained on LibriSpeech-960, self-supervised the final two. For the LLM, we apply LoRA adapters to
+models pre-trained on large-scale unlabeled speech, and the query and value projections in each self-attention layer.
+universal models trained on multilingual labeled datasets. Table IV reports results on low-resource ASR tasks. For Thai
+For LibriSpeech-960 specialist models, we compare against and Vietnamese, the LLM-based model (Whisper encoder +
+ContextNet [35], Conformer [36], Branchformer [37] (ESP- Sailor-7B) outperforms both Whisper and Whisper-finetune. In
+net), and Zipformer [38] (K2). These models use extensive Indonesian, while it falls short of Whisper-finetune, it still
+This work is licensed under a Creative Commons Attribution 4.0 License. For more information, see https://creativecommons.org/licenses/by/4.0/
+
+--- PAGE 5 ---
+This article has been accepted for publication in IEEE Journal of Selected Topics in Signal Processing. This is the author's version which has not been fully edited and
+content may change prior to final publication. Citation information: DOI 10.1109/JSTSP.2026.3653157
+JOURNALOFLATEXCLASSFILES,VOL.14,NO.8,AUGUST2021 5
+TABLE III: Compared to prior NN-based models on Lib-
+evaluation. Our system uses Whisper large-v3 as the speech
+riSpeech, Specialist Models are trained solely on the 960-hour
+encoder, Qwen2-7B as the LLM decoder, and a lightweight
+LibriSpeech dataset, often using in-domain LMs built from
+linearprojectortoalignspeechandtextmodalities.Toenhance
+LibriSpeech text and transcripts. SSL-based Models are self-
+performance, LoRA adapters are applied to the query and
+supervised models pre-trained on large-scale unlabeled data,
+valuematricesineachself-attentionlayeroftheLLM.TableV
+then fine-tuned with supervision. Universal Models refer to
+shows that the LLM-based model outperforms Whisper large-
+general-purposesystemstrainedonmassivelabeledspeech-text
+v3acrossallmetricsonthecode-switchingtestset,achievinga
+pairs. Repository links are provided for reproducibility. “Ours”
+20.2%relativereductioninMER,highlightingtheeffectiveness
+denotes results from our best system in Table II.
+of the LLM-based architecture.
+SpeechData(h) WER(%)↓
+Model Implementation TABLE V: Comparison of Whisper large-v3 and LLM-based
+Unlabeled/Labeledtest-cleantest-other
+SpecialistModels ASR in Mandarin-English code switching ASR. MER denotes
+ContextNet-large[35] 2.1 4.6
+- -/960 mixed error rate for both Chinese character and English words.
++in-domainLM 1.9 4.1
+Conformer-large[36] 2.1 4.3
++in-domainLM - -/960 1.9 3.9 Model CNCER ENWER MER
+Branchformer-large[37] ESPnet -/960 2.4 5.5 Whisperlarge-v3 7.85 35.18 10.01
++in-domainLM 2.1 4.5
+Ours 5.97 26.84 7.99
+Zipformer-large[38] 2.0 4.4
+K2 -/960
++in-domainLM 1.9 3.9
+SSL-basedModels
+wav2vec2.0-large[39] 2.2 4.5
+Fairseq 60k/960
++in-domainLM 1.8 3.3 B. Contextual Automatic Speech Recognition (CASR)
+HuBERT-large[4] 2.2 4.5
+Fairseq 60k/960
++in-domainLM 1.9 3.3 1) Task setup: We investigate two types of Contextual ASR
+HuBERT-x-large[4] 2.0 3.7
+Fairseq 60k/960 tasks:VisualContextualSpeechRecognitionandContextual
++in-domainLM 1.8 2.9
+WavLM-large[29] 2.7 5.0 Biasing Speech Recognition, as shown in Figure 3. In Visual
+UniSpeech 94k/960
++in-domainLM 1.8 3.2
+Contextual ASR, textual keywords extracted from presentation
+UniversalModels
+Whisper-large-v2[3] OpenAI/Whisper -/680k 2.7 5.2 slidesareusedtoimprovetranscriptionaccuracyforconference
+Whisper-large-v3[3] OpenAI/Whisper -/1000k 2.0 3.9
+content. Each speech segment is paired with pre-processed
+OWSM-v3.1[40] ESPnet -/180k 2.4 5.0
+LLM-basedModels OCRresultsandslide-specifickeywords.InContextualBiasing
+Ours SLAM-LLM -/960 1.8 3.4 ASR, a predefined list of hundreds to thousands of biasing
+terms—suchasnamedentities,contactnames,orsongtitles—is
+provided to help recognize rare or domain-specific vocabulary.
+surpasses the base Whisper model. These results suggest
+2) Visual Contextual Speech Recognition:
+that incorporating LLMs effectively leverages rich textual
+a) Datasets: We use the SlideSpeech [42] dataset for
+knowledge to improve ASR under limited-resource settings.
+training and evaluation. This large-scale audio-visual corpus is
+Sailor-7B, fine-tuned for Southeast Asian languages, further
+constructed from YouTube conference videos and provides
+enhances performance. Compared to Vicuna-based models, the
+high-quality transcribed speech aligned with synchronized
+Sailor-based system achieves better results across all three
+slides. It includes 720p videos, 16kHz audio, pre-processed
+languages, underscoring the value of language-specific LLM
+OCR results, and extracted keywords per segment, supporting
+selection in low-resource scenarios.
+multimodal ASR tasks. Two training sets are available: a large
+set (L95) with 473 hours and a smaller subset (S95) with 161
+TABLE IV: Comparison of Whisper and LLM-based ASR
+hours. The development and test sets contain 5.07 and 8.75
+in WER/CER for low resource languages among Thai(th),
+hours, respectively. The dataset’s alignment between speech
+Vietnamese(vi), and Indonesian(id). “+ Fine-tuning” refers
+and slides makes it well-suited for text-enhanced multimodal
+to the model that is fine-tuned using the same amount low-
+ASR, particularly in correcting domain-specific or proprietary
+resource language training data compared to the LLM-based
+terms often misrecognized by conventional systems.
+ASR models.
+b) Model setup: We adopt the official WavLM Large
+Language(WER%)↓ model as the speech encoder, Vicuna-7B as the LLM decoder,
+Model
+and a lightweight linear projector to align speech features with
+th vi id
+the LLM input space. The projector first downsamples 50Hz
+WhisperEnc.+WhisperDec. 20.44 17.94 20.03
+features to 10Hz via a 1D convolution, followed by two linear
++Fine-tuning 17.08 16.15 17.13
+layers with a hidden dimension of 2048. The training recipes
+WhisperEnc.+Vicuna-7B 17.25 17.95 19.83
+WhisperEnc.+Sailor-7B 16.13 15.10 19.48 and model checkpoints can be found here4.
+c) Experiments: Table VI reports performance on the
+SlideSpeech dataset using WER, biased WER (B-WER), unbi-
+g) Experiments on the code switching dataset: We also
+asedWER(U-WER),andkeywordRecall.Ourbaselinemodel,
+conducted experiments on the ASRU 2019 Mandarin-English
+trained on L95/S95, achieves WERs of 9.4%/11.7%, showing
+Code-Switching Challenge dataset [41], which includes 200
+relative reductions of 27.9%/44.7% over the SlideSpeech
+hours of code-switching speech and 500 hours of Mandarin-
+only speech. In this study, we use only the 200-hour code- 4https://github.com/X-LANCE/SLAM-LLM/tree/main/examples/mala asr
+switching subset for training and a 20-hour test set for slidespeech
+This work is licensed under a Creative Commons Attribution 4.0 License. For more information, see https://creativecommons.org/licenses/by/4.0/
+
+--- PAGE 6 ---
+This article has been accepted for publication in IEEE Journal of Selected Topics in Signal Processing. This is the author's version which has not been fully edited and
+content may change prior to final publication. Citation information: DOI 10.1109/JSTSP.2026.3653157
+JOURNALOFLATEXCLASSFILES,VOL.14,NO.8,AUGUST2021 6
+(a) Visual Contextual ASR (b) Contextual Biasing ASR
+<EOS> <EOS>
+❄ ❄
+LLM LLM
+Projector 🔥 LLM Tokenizer Projector 🔥 LLM Tokenizer
+Speech Encoder❄ Prompt: Use k t e h y e w k o e r y d w s o to r d im s a p r r e o v {} e . ASR accuracy, Fine-tuned WavLM❄ P r o m p t : T m r i a g n h s t c h ri e b lp e . s T pe h e e c h h o t t o w t o e r x d t. s S a o r m e { e } h . otwords
+Filter
+CTC Output Filter
+Hotwords List
+Slide
+Fig. 3: (a) LLM-based Visual Contextual ASR in SLAM-LLM framework. (b) LLM-based Contextual Biasing ASR in SLAM-
+LLM framework.
+TABLE VI: ASR results of with or without contextual keywords evaluated on dev/test datasets, trained on S95/L95 datasets,
+compared with previous NN-based models.
+Contextual Dev Test
+Train Model
+Keywords
+WER B-WER U-WER Recall↑ WER B-WER U-WER Recall↑
+SlidesSpeech[42] ✗ 21.05 31.27 20.29 68.76 21.22 26.60 20.83 73.51
+CPP[42] ✓ 20.80 28.61 20.22 71.48 20.95 24.05 20.73 76.10
+S95 LCB-net[43] ✓ 18.80 27.90 18.11 72.09 19.21 23.70 18.89 76.48
+(161h) Ours ✗ 11.57 16.23 11.28 83.83 11.80 13.52 11.71 86.71
+Ours ✓ 11.14 8.92 11.36 91.44 11.26 7.67 11.52 92.50
+SlidesSpeech[42] ✗ 13.09 16.13 12.87 83.90 12.89 12.70 12.90 87.43
+CPP[42] ✓ 12.64 12.39 12.66 87.64 12.38 9.32 12.60 90.86
+LCB-net[43] ✓ 12.21 12.12 12.21 87.98 12.02 9.03 12.24 91.12
+L95 Ours ✗ 9.38 11.98 9.19 88.08 9.34 9.52 9.33 90.64
+(473h) +LoRA ✗ 8.82 9.62 8.77 90.38 8.61 7.34 8.72 92.84
+Ours ✓ 8.91 6.07 9.13 94.02 9.14 5.47 9.42 94.87
++LoRA ✓ 8.30 5.22 8.53 94.87 8.46 4.89 8.73 95.31
+contextual ASR baseline. Incorporating keyword prompts Lists of size N = 100,500,1000,2000 are constructed by
+furtherreducesWERsto9.0%/11.2%,improvingby3.6%/4.1%. varying the number of distractors.
+Notably, B-WER drops from 10.8% to 5.8% on L95 and b) Model setup: We fully fine-tune the official WavLM
+from 14.9% to 8.3% on S95, while Recall improves from Largemodel(315.5Mparameters)onthe960-hourLibriSpeech
+89.4% to 94.4% and from 85.3% to 92.0%. U-WER remains trainingsetusingCTCloss.Thefine-tunedmodelservesasthe
+stable, indicating effective use of keyword prompts without speech encoder. The rest of the architecture mirrors the visual
+harminggeneraltranscription.Fine-tuningtheLLMwithLoRA contextual ASR setup, employing Vicuna-7B (6.7B) as the
+adapters further improves results. On L95, WER decreases LLM decoder and a lightweight linear projector (15.7M). The
+from 9.4% to 8.7%, and to 8.4% when keyword prompts are training recipes and model checkpoints can be found here5.
+used. Compared to prior contextual ASR systems, including c) Experiments with different biasing lists: Table VII
+CPP [42], LCB-Net [43], and the SlideSpeech baseline, presents the performance of our CTC-assisted LLM-based
+our LLM-based approach achieves significantly lower WER, contextual ASR (CASR) model on LibriSpeech, evaluated
+highlighting its superior capability in leveraging context for using WER, B-WER, and U-WER. For non-contextual ASR,
+accurate transcription. using the pre-trained WavLM Large encoder yields WERs
+3) Contextual Biasing Speech Recognition: of 2.13%/4.73% on test-clean/test-other. Fine-tuning slightly
+improvesperformanceto2.11%/4.20%,servingasourbaseline.
+a) Datasets: We use the LibriSpeech corpus for training
+In contextual ASR, prompting with an empty string achieves
+and evaluation, following prior work [44], [45]. The LLM-
+WER/B-WER of 1.96%/9.33% (test-clean) and 4.18%/20.02%
+based ASR model is trained on the full 960-hour training set
+(test-other),showingrobustnessevenwithoutexplicithotwords.
+using the official WavLM Large as the pre-trained encoder.
+Supplying ground-truth hotwords further reduces WER/B-
+Evaluation is conducted on the standard dev-clean/dev-other
+WER to 1.13%/2.78% and 2.68%/6.00%, representing the
+andtest-clean/test-othersets.ForcontextualASR,weadoptthe
+upper-bound performance. In practical settings, where bi-
+artificial biasing list from [44], where the 5,000 most frequent
+asing lists mix relevant terms with distractors, best perfor-
+trainingwordsarelabeledascommon,andtherestasrare.Each
+test-time biasing list includes rare words from the reference 5https://github.com/X-LANCE/SLAM-LLM/tree/main/examples/
+and distractors sampled from the 209.2K rare-word vocabulary. contextual asr
+This work is licensed under a Creative Commons Attribution 4.0 License. For more information, see https://creativecommons.org/licenses/by/4.0/
+
+--- PAGE 7 ---
+This article has been accepted for publication in IEEE Journal of Selected Topics in Signal Processing. This is the author's version which has not been fully edited and
+content may change prior to final publication. Citation information: DOI 10.1109/JSTSP.2026.3653157
+JOURNALOFLATEXCLASSFILES,VOL.14,NO.8,AUGUST2021 7
+mance is achieved with 100-word lists, reducing WER/B- <EOS>
+WER to 1.27%/3.67% and 2.72%/8.02%, corresponding to
+relative WER/B-WER reductions of 39.81%/63.37% and LLM
+LORA🔥
+35.24%/61.37% over the baseline, while U-WER remains
+stable.Aslistsizeincreases,performancedegradesslightly,but Projector 🔥
+even with 2,000-word lists, the model achieves 1.38%/4.41%
+AV-HuBERT V ❄ LLM Tokenizer
+(test-clean)and3.20%/10.02%(test-other),maintainingnotable
+improvements. These results demonstrate the model’s strong Prompt: Transcribe the speech in this video to text.
+capacity to filter and utilize biasing information effectively.
+Fig. 4: The model architecture of LLM-based visual speech
+TABLE VII: Performance of LLM-Based Contextual ASR on recognition (VSR) in SLAM-LLM framework.
+LibriSpeech test sets. “No bias” indicates adding an empty
+string, “Bias List” refers to incorporating filtered hotwords
+from the complete biasing list, and “GT Hotwords” denotes hours) for train-val, and 1,452 utterances (1 hour) for testing.
+including the exact ground truth hotwords during inference. LRS3 presents a significant challenge due to its wide variation
+in head poses, lighting, speaking styles, and speakers.
+test-clean test-other
+WavLMEncoder Prompt
+TABLE IX: Performance of LLM-based VSR model on the
+WERB-WERU-WERWERB-WERU-WER
+LRS3 dataset with SLAM-LLM framework.
+Pre-trained ✗ 2.13 10.15 1.20 4.73 22.43 2.84
+CTCFine-tuned ✗ 2.11 10.02 1.20 4.20 20.76 2.43
+Trainable
+Nobias 1.96 9.33 1.11 4.18 20.02 2.49 Model Encoder Decoder Criterion Param. WER
+CTCFine-tuned 5 1 0 0 0 0 B B i i a a s si in ng g w w o or rd ds s 1 1 . . 3 27 3 3 3. . 9 6 2 7 1 1 . .0 03 0 3 2 . . 0 72 4 8 9. . 0 0 4 2 2 2 . . 1 4 6 0 A O V u - r H s uBERT[52] AV-HuBERT v V T i r c a u n n sf a o v1 rm .5- e 7B r C D T e C co + d A e t r t - e O n n ti l o y n 3 4 2 9 5 2 2 8 8 . . 3 6
+1000 1.33 4.16 1.00 2.99 9.33 2.31
+Biasingwords
+2000 1.38 4.41 1.03 3.20 10.02 2.47
+Biasingwords
+b) Model setup: We use the official AV-HuBERT Large
+GTHotwords 1.13 2.78 0.94 2.68 6.00 2.32
+model (477.3M), pre-trained on LRS3 and VoxCeleb2 [53]
+(1,759 hours of unlabeled data), and fine-tuned on 433 hours
+TABLEVIII:PerformancecomparisonwithpreviousNN-based of labeled LRS3 data for the VSR task. Vicuna-7B serves as
+contextualASRmodelsutilizingartificialbiasinglistsproposed the LLM decoder, with a lightweight linear projector as the
+in [44] on the Librispeech test sets, with biasing list size N adaptor. To enhance performance, we apply LoRA adapters
+set to 1000. to the key, query, value, and output projection layers in each
+self-attention module of the LLM, using rank 32, alpha 32,
+test-clean test-other and dropout 0.05. This introduces 33.6M additional trainable
+Model
+WERB-WERU-WERWERB-WERU-WER parameters. The training recipes and model checkpoints can
+be found here6.
+CPPNet[45] 3.81 11.40 2.90 8.75 25.30 6.90
+DeepBiasing+BPB[46] 3.47 7.70 3.00 7.34 15.80 6.40 c) Experiments: Table IX shows the performance of
+TCPGen +GNNenc. [47] 3.10 6.70 - 7.90 17.80 - our LLM-based VSR model trained and evaluated on the
+GA-CTC [48] 2.40 6.30 2.00 6.20 15.20 5.20
+LRS3 dataset. When utilizing the same amount of labeled
+TCPGen [49] 2.20 4.60 - 6.00 12.30 -
++p+phn-awareQ
+DB-NNLM [44] 2.14 6.70 1.60 6.35 17.20 5.10 and unlabeled training data, our SLAM-VSR model achieves a
+Ours [50] 1.33 4.16 1.00 2.99 9.33 2.31 better WER of 28.3 compared with the AV-HuBERT baseline
+model fine-tuned for VSR task, with much less trainable
+d) Comparison with Non-LLM-based CASR models: parameters of only 49 million, demonstrating the efficiency of
+Table VIII shows a performance comparison with various NN- LLM-based structure.
+based contextual ASR models using the artificial biasing lists
+proposed in [44] on the Librispeech test sets, with the biasing D. Speech-to-Text Translation (S2TT)
+list size set to 1000. Our LLM-based method significantly
+a) Model setup: The LLM-based speech-to-text trans-
+outperforms traditional NN-based approaches.
+lation (S2TT) model in SLAM-LLM uses a frozen Whisper
+encoder and Qwen2-7B LLM, with the Q-Former projection
+C. Visual Speech Recognition (VSR) as the only trainable component. The encoder extracts speech
+features, which are compressed and aligned to the LLM input
+Visual Speech Recognition (VSR) aims to transcribe speech
+space via the Q-Former. The LLM then generates text outputs
+by analyzing visual cues from a speaker’s face, as shown in
+based on concatenated auditory and textual embeddings. The
+Figure 4. We explore LLM-based VSR in our SLAM-LLM
+training recipes and model checkpoints can be found here7.
+framework.
+b) Datasets: We conduct experiments using CoVoST-
+a) Datasets: We conduct experiments on the large-scale
+2 [54] for training and MuST-C [55] for zero-shot evaluation.
+AVSR benchmark dataset LRS3 [51], which comprises over
+400 hours of TED and TEDx videos with aligned subtitles 6https://github.com/X-LANCE/SLAM-LLM/tree/main/examples/vsr LRS3
+and word boundaries. The dataset is split into three subsets: 7https://github.com/X-LANCE/SLAM-LLM/tree/main/examples/st
+119kutterances(407hours)forpre-training,32kutterances(30 covost2
+This work is licensed under a Creative Commons Attribution 4.0 License. For more information, see https://creativecommons.org/licenses/by/4.0/
+
+--- PAGE 8 ---
+This article has been accepted for publication in IEEE Journal of Selected Topics in Signal Processing. This is the author's version which has not been fully edited and
+content may change prior to final publication. Citation information: DOI 10.1109/JSTSP.2026.3653157
+JOURNALOFLATEXCLASSFILES,VOL.14,NO.8,AUGUST2021 8
+TABLE X: The prompt design is intended for instruction
+traditional categorical labels, enabling the model to learn fine-
+fine-tuning three tasks: ASR, MMT, and SRT. We designed
+grained emotional representations.
+minimalist yet effective prompts to distinguish tasks.
+c) Model Setup: SECap [61] achieves state-of-the-art
+SEC performance using HuBERT [4] as the audio encoder,
+Task Instruction Prediction
+ASR <|en|> Willitraintomorrow? a Chinese LLaMA-2 decoder, and a Q-Former Bridge-Net
+MMT Willitraintomorrow?<|de|> Willitraintomorrow?<|de|>Regnetesmorgen?
+to extract emotion-relevant acoustic features. However, it
+SRT <|de|> Willitraintomorrow?<|de|>Regnetesmorgen?
+relies on complex training strategies—Speech–Transcription
+Mutual Information Learning (STMIL) and Speech–Caption
+TABLEXI: SpeechtranslationBLEU scoresonCoVoST-2and
+Contrastive Learning (SCCL)—to attain its reported gains.
+MuST-C datasets. We conducted experiments in German (De),
+To enhance intrinsic emotion perception while simplifying
+Japanese (Ja), and Chinese (Zh). We use underline to highlight
+the training pipeline, we replace the audio encoder with
+previous SOTA baseline, and use bold to highlight surpassing
+emotion2vec[64],aself-supervised modeltailoredforemotion
+the SOTA performance.
+representation. We adopt Vicuna-7B as the LLM and retain
+the Q-Former as the projection module. The training recipes
+CoVoST-2 MuST-C
+En→X (zero-shot) and model checkpoints can be found here8.
+De Ja Zh Avg. De Ja Zh Avg.
+CascadedSTMethods d) Experiments: Following the evaluation protocol in
+Whisper+NLLB [56] - 19.0 32.0 - - - 13.5 - SECap, we test the model on the 600 sentences from the
+3.3b
+Whisper+Qwen [57] 25.3 22.7 43.6 30.5 22.8 - - -
+7B-chat EMOSpeech testset released by [61], and we report sentence
+End-to-EndMethods similarity (SIM) based on MACBERT [65] as the primary
+SALMONN[58] 18.6 22.7 33.1 24.8 - - - -
+metric. Table XII contrasts our LLM-based SEC model in
+BLSP-KD[57] 24.4 21.3 41.3 29.0 20.7 - - -
+SeamlessM4T-V2[59] 37.0 23.5 34.6 31.7 - - 18.1 - SLAM-LLM with the SECap family and the HTSAT–BART
+Qwen2-Audio[60] 29.9 28.6 45.2 34.5 22.4 7.8 18.3 16.1 baseline reported in the SECap paper. Without any auxiliary
+Ours-7B 28.7 30.8 47.7 35.7 18.3 11.3 21.2 16.9
+objectives, our model attains a SIM of 71.10%, outperforming
+the vanilla SECap and narrowing the gap to the most heavily
+engineered SECap variant. Relative to the HTSAT–BART
+c) Experiments: We adopt a multimodal Chain-of-
+baseline, the gain exceeds 7 percentage points, underscoring
+Thought (CoT) approach to decompose the speech translation
+the effectiveness of coupling the SSL emotion2vec encoder
+(ST) task into two sequential stages: ASR followed by mul-
+with a strong LLM decoder.
+timodal machine translation (MMT), collectively referred to
+as SRT (Speech Recognition and Translation), as illustrated TABLE XII: Performance of speech emotion captioning with
+in Table X. This formulation enables end-to-end generation SLAM-LLM framework. The specific information of the
+of both transcriptions and translations. We apply three-stage different modules is given in the table. Results other than
+SFT with curriculum learning on CoVoST-2, followed by zero- ours come from the SECap paper.
+shot evaluation on MuST-C. As shown in Table XI, our model
+achievesstate-of-the-art(SOTA)performanceonCoVoST-2and Model Encoder Decoder SIM(%)
+outperforms existing methods in zero-shot English-to-Chinese Baseline[61] HTSAT BART 63.95
+translation on MuST-C. SECap[61] 67.29
++STMIL HuBERT Chinese-LLaMA2-7B 68.75
++SCCL 71.95
+Ours emotion2vec Vicuna-v1.5-7B 71.10
+E. Speech Emotion Captioning (SEC)
+a) Task setup: Speech Emotion Captioning (SEC) aims
+to describe speech emotions using natural language, offering
+a more nuanced alternative to traditional speech emotion F. Takeaways
+recognition (SER), which typically relies on fixed emo- Fromtheaboveexperiments,severalkeytakeawayscanhelp
+tion categories and struggles to capture the complexity of guide future research and development of LLM-based speech
+human affect. SECap [61] first introduced SEC using an tasks:
+Encoder–Projector–LLM framework to generate rich emo-
+• Larger models improve performance. Obviously, both
+tional descriptions. SEC has enabled applications such as
+larger speech encoders and larger LLMs consistently lead
+PerceptiveAgent [62], which enhances emotional awareness
+to better ASR performance.
+in conversations, and AVI-Talking [63], which improves the
+• Chat LLMs outperform pre-trained LLMs. Chat
+expressiveness of talking-face animations. Beyond these, SEC
+models, such as Vicuna-7B, consistently outperform pre-
+holds promise for a wide range of yet-unexplored applications.
+trainedLLMsinASRtasks,particularlywhenpairedwith
+b) Datasets: We trained our model using approximately
+larger speech encoders.
+40 hours of in-house emotional speech data. Each audio
+• Self-supervised encoders are superior at scale. Self-
+segment in the dataset is annotated with 1 to 3 emotion-
+supervised encoders outperform supervised encoders
+relatedcaptions,whichprovidenaturallanguagedescriptionsof
+the expressed affective content. These captions were carefully 8https://github.com/X-LANCE/SLAM-LLM/tree/main/examples/sec
+curatedtocaptureadiverserangeofemotionalnuancesbeyond emotioncaps
+This work is licensed under a Creative Commons Attribution 4.0 License. For more information, see https://creativecommons.org/licenses/by/4.0/
+
+--- PAGE 9 ---
+This article has been accepted for publication in IEEE Journal of Selected Topics in Signal Processing. This is the author's version which has not been fully edited and
+content may change prior to final publication. Citation information: DOI 10.1109/JSTSP.2026.3653157
+JOURNALOFLATEXCLASSFILES,VOL.14,NO.8,AUGUST2021 9
+once they reach a sufficient size. Fine-tuning these self- precision, recall, synonyms, and stemming. CIDEr measures
+supervised encoders yields significant performance gains, n-gram consensus using TF-IDF. SPICE compares semantic
+and though our experiments were limited, we believe fine- graphs of generated and reference captions. SPIDEr linearly
+tuning LLMs on in-domain text data would also enhance combines CIDEr and SPICE for balanced evaluation. SPIDEr-
+performance. FL further incorporates fluency detection from FENSE, which
+• Domain specialization LLMs are good helpers. For in- uses Sentence-BERT for semantic similarity combined with
+stance, utilizing LLMs trained on low-resource languages fluency error detection.
+can enhance the effectiveness of LLM-based low-resource c) Model Setup: For vanilla setting, we utilize the frozen
+languages ASR. EAT model [79] as the audio encoder to extract fine-grained
+• Whisper models face limitations with truncation. audiorepresentations,whicharethendownsampledandaligned
+Whisper models, which pad speech inputs to 30 seconds, with LLM embeddings through a linear projector. Specifically,
+experience performance degradation when truncated. Ut- theprojectordownsamplesthe50Hzfeaturesto10Hzusingtwo
+terancewith30salsosignificantlyincreasescomputational linear layers, with an intermediate hidden layer dimension of
+demandsduringLLMpost-training.Werecommendusing 2048. For decoding, the LLM, Vicuna [10], generates captions
+self-supervised models with variable-length embeddings based on these concatenated representations and is efficiently
+as encoders to mitigate this issue. fine-tuned using LoRA. During inference, multiple candidate
+More detailed and technique-specific information can be found captions are generated through beam search within different
+insub-tasksresearch[50],[66],[67]oftheSLAM-LLMseries. beam widths, with the most audio-aligned caption selected
+as the final output using the CLAP-Refine [80] strategy. The
+training recipes and model checkpoints can be found here9.
+V. LLM-BASEDAUDIOANDMUSICPROCESSING
+For zero-shot audio captioning, we utilize the frozen CLAP
+A. Automated audio captioning (AAC)
+[81] model as the audio & text encoder. During training,
+Automated audio captioning (AAC) aims to generate fine- raw captions are first encoded by the text branch of the
+grainednaturallanguagedescriptionsfrominputaudio,serving CLAP model, and then get aligned with the LLM through
+as a key task in audio processing. As shown in Figure 5, we a two-layer linear projector. The LLM, efficiently fine-tuned
+focus on two mainstream AAC paradigms with the SLAM- using the LoRA [82] method, learns to re-construct the
+LLM framework: (1) The vanilla setting, also known as fully ground-truth caption conditioned on the mapped CLAP latent
+supervised audio captioning, where the model is trained on and an encoded prompt retrieved from a datastore. During
+paired audio-text data. (2) The zero-shot setting, where the inference, the text branch is replaced by the audio branch of
+model is trained exclusively on text data and is expected to the CLAP model, and the system describes audio clips in a
+generate captions for audio clips in a zero-shot manner during zero-shot manner. Projection-based decoding [83] and retrieval-
+inference. augmented generation (RAG) are employed to reduce the
+a) Datasets: We use four key audio-text datasets for the modality gap and improve caption quality. Audio embeddings
+audio captioning experiments: Clotho [68], AudioCaps [69], are projected onto the text embedding space, while similar
+WavCaps [70], and MACS [71]. For Clotho, version 2.1 was captions retrieved from a datastore are used as prompts to
+used, consisting of audio clips ranging from 15 to 30 seconds guide the LLM. The training recipes and model checkpoints
+in duration. The dataset includes 3,839 training examples, can be found here 10.
+1,045 validation examples, and 1,045 evaluation examples, d) VanillaAudioCaptioningExperiments: Forthevanilla
+with each audio clip accompanied by five captions. AudioCaps audio captioning system, we trained our model on the pre-
+contains over 50,000 ten-second audio clips derived from training dataset, followed by fine-tuning on the AudioCaps
+AudioSet [72]. It is split into a training set (49,274 clips, and Clotho datasets individually. Furthermore, we conducted a
+each with one caption), a validation set (494 clips, each with comprehensive ablation study on these two datasets to evaluate
+fivecaptions),andatestset(957clips,eachwithfivecaptions). the impact of each component.
+WavCapscomprises403,050audioclipscollectedfrommultiple
+Table XIII compares the performance of our model with pre-
+sources, including AudioSet, BBC Sound Effects, FreeSound,
+viousSOTAAACsystems.Weincludethreemodelsusingnon-
+and SoundBible. MACS consists of 3,930 ten-second audio
+LLM-based decoding: EnCLAP [84], WavCaps [70], and Wu
+files, each associated with 2 to 5 captions, mainly recorded
+et al. [85]—and two employing LLM-based decoding—Tang
+in three acoustic environments (airport, public square, and
+et al. [86] and LOAE [87]. Overall, LLM-based models tend
+park). For our experiments, we used the training sets from
+to produce higher-quality captions, likely due to their stronger
+Clotho,AudioCaps,andMACS,alongwiththeentireWavCaps
+reasoning capabilities. Compared to previous models, our
+datasetforpre-training.Inaddition,theClothotrainingsetwas
+proposed system demonstrates consistent improvements across
+augmented using a paraphrasing method, which draws from
+boththeClothoandAudioCapsdatasets.OnClotho,itachieves
+the back-translation [73] technique used in machine translation
+the highest scores across all AAC metrics, with a notable
+to expand the dataset during pre-training.
+improvement in FENSE (54.0%), surpassing both the LOAE
+b) Evaluation Metrics: To evaluate the quality of gener-
+ated audio captions, we used several standard AAC metrics: 9https://github.com/X-LANCE/SLAM-LLM/tree/main/examples/slam aac
+METEOR[74],CIDEr[75],SPICE[76],SPIDEr[77],SPIDEr- 10https://github.com/X-LANCE/SLAM-LLM/tree/main/examples/drcap
+FL [78] and FENSE [78]. METEOR considers unigram zeroshot aac
+This work is licensed under a Creative Commons Attribution 4.0 License. For more information, see https://creativecommons.org/licenses/by/4.0/
+
+--- PAGE 10 ---
+This article has been accepted for publication in IEEE Journal of Selected Topics in Signal Processing. This is the author's version which has not been fully edited and
+content may change prior to final publication. Citation information: DOI 10.1109/JSTSP.2026.3653157
+JOURNALOFLATEXCLASSFILES,VOL.14,NO.8,AUGUST2021 10
+(a) Vanilla AAC (b)Zero-shotAAC
+Text Only Training Zero-shot Inference
+<EOS> <EOS> <EOS>
+LLM LoRA🔥 LLM LoRA🔥 LLM LoRA❄
+Projector🔥 Projector🔥 Projector❄
+LLM LLM LLM
+Tokenizer Tokenizer Tokenizer
+EAT ❄ CLAP Text❄ CLAP Audio❄
+Encoder Fixed Prompt: Describe Encoder Fixed Prompt: Describe Encoder Fixed Prompt: Describe
+the audio you hear. the audio you hear. the audio you hear.
+Ground Truth Caption
+Fig. 5: (a). LLM-based vanilla automated audio captioning in SLAM-LLM framework (b). LLM-based zero-shot automated
+audio captioning in SLAM-LLM framework
+TABLE XIII: Performance comparison of Vanilla (fully supervised) AAC models on Clotho and AudioCaps evaluation split. The
+pre-training datasets used include AudioCaps (AC), Clotho (CL), WavCaps (WC), MACS (MA), LibriSpeech (LS) [30], and
+GigaSpeech (GS) [33]. Metrics reported are METEOR (MT), CIDEr (CD), SPICE (SC), SPIDEr (SD), SPIDEr-FL (SF), and
+FENSE (FS). CL and CL denote the Clotho training set augmented with the ChatGPT Mix-up method and the paraphrasing
+C P
+approach, respectively. All metrics are reported with higher values indicating better performance.
+ClothoEvaluation(%) AudioCapsEvaluation(%)
+Model Pre-trainingData
+MT CD SC SD SF FS MT CD SC SD SF FS
+EnCLAP-large[84] AC+CL 18.6 46.4 13.3 29.9 28.9∗ 50.7∗ 25.5 80.3 18.8 49.5 49.9∗ 65.5∗
+WavCaps† [70] AC+CL+WC 18.5 48.8 13.3 31.0 29.6∗ 50.1∗ 25.0 78.7 18.2 48.5 48.3∗ 64.2∗
+Wuetal.[85] AC+CL 19.3 50.6 14.6 32.6 32.6 53.6 - - - - - -
+C
+Tangetal.[86] AC+CL+WC+LS+GS - - - 31.8 - - - - - 50.6 - -
+LOAE[87] AC+CL+WC 19.7 51.4 14.7 33.1 32.8 53.2 26.7 81.6 19.3 50.5 50.4 66.2
+Ours AC+CL +WC+MA 19.7 51.5 14.8 33.2 33.0 54.0 26.8 84.1 19.4 51.8 51.5 66.8
+P
+∗Foropen-sourcemodels,weevaluatedmetricsnotreportedintheoriginalpapersusingourevaluationsplit.
+†ThebestperformanceofWavCapsonbothdatasetsisselectedforcomparison(modelarchitecturesmaydiffer).
+TABLE XIV: Ablation study on AudioCaps and Clotho. PT
+and Wu et al. models. On AudioCaps, the improvements are
+indicates a pre-trained model, FT denotes a fine-tuned version.
+even more pronounced: our model attains a CIDEr score of
+BSdenotesbeamsearchdecoding,CRrepresentsCLAP-Refine.
+84.1%, significantly exceeding LOAE (81.6%), and achieves a
+FENSE score of 66.8%, outperforming all other models.
+Audio Pre-Trained PEFT Metrics (%)
+Table XIV shows the results of a comprehensive ablation Dataset Decoding
+study conducted on the AudioCaps and Clotho. The study Encoder Model (LoRA) MT CD SC SD
+explored the impact of different audio encoders, versions BEATs BS 23.269.617.243.4
+PT
+of audio encoders (pre-trained vs. fine-tuned on AudioSet), BEATs FT BS 23.969.817.343.5
+EAT BS 23.567.017.342.2
+whether pre-training was performed, the use of parameter- PT
+EAT BS 25.075.318.546.9
+AudioCaps FT
+efficient fine-tuning (e.g., LoRA), and different decoding EAT BS 26.080.018.349.2
+FT
+strategies (beam search vs. CLAP-Refine). Results show that EAT FT BS 26.182.719.551.1
+EAT CR 26.681.419.450.4
+fine-tuned audio encoders, particularly those with strong FT
+EAT CR 26.884.119.451.8
+FT
+performance in classification tasks, significantly enhance AAC
+EAT BS 17.134.111.322.7
+quality. Pre-training the LLM-based AAC model further FT
+EAT BS 17.038.912.025.4
+boosts performance, while LoRA improves training efficiency. FT
+EAT BS 19.249.814.432.1
+Clotho FT
+Additionally, the CLAP-Refine decoding method consistently EAT BS 19.451.014.632.8
+FT
+improves caption quality by enhancing alignment with input EAT FT CR 19.751.514.833.2
+audio, leading to higher CIDEr and SPIDEr scores.
+e) Zero-shot Audio Captioning Experiments: For zero-
+shot audio captioning, we conducted experiments in both in- of the target dataset. Specifically, for Clotho Evaluation, the
+domainandcross-domainscenariostoevaluatetheperformance. source dataset is AudioCaps and for AudioCaps Evaluation,
+For in-domain scenario, systems are trained and evaluated on the source dataset is Clotho.
+the same dataset following the standard train & val & test split. Table XV presents a performance comparison between our
+For cross-domain scenario, systems are trained on the training zero-shot AAC model and previous state-of-the-art. ZerAuCap
+set of the source dataset and evaluated on the evaluation set [88] uses CLAP to guide the LLM to generate descriptions,
+This work is licensed under a Creative Commons Attribution 4.0 License. For more information, see https://creativecommons.org/licenses/by/4.0/
+
+--- PAGE 11 ---
+This article has been accepted for publication in IEEE Journal of Selected Topics in Signal Processing. This is the author's version which has not been fully edited and
+content may change prior to final publication. Citation information: DOI 10.1109/JSTSP.2026.3653157
+JOURNALOFLATEXCLASSFILES,VOL.14,NO.8,AUGUST2021 11
+TABLE XV: Performance comparison of zero-shot audio
+we demonstrate in the experiments that even models trained
+captioning systems. For metrics, MT: METEOR, CD: CIDEr,
+only on LP-MusicCaps-MC can achieve comparable results to
+SP: SPICE, SD: SPIDEr, FS: FENSE. Higher values indicate
+existing models [91], [92] pre-trained on LP-MusicCaps-MSD.
+better performance for all metrics.
+b) Modelsetup: Weuseapre-trainedmodelasthemusic
+encoder and Vicuna-7b-v1.5 [10] as the LLM, both of which
+ClothoEvaluation(%) AudioCapsEvaluation(%)
+Method Scenario are kept frozen during training. We use a linear projector, and
+MT CD SP SD FS MT CD SP SD FS
+the projector is the only trainable component. We consider two
+ZerAuCap[88] 9.4 14.0 5.3 9.7 - 12.328.1 8.6 18.3 -
+different types of music encoders. The first is the frame-wise
+WSAC[89] In 17.437.112.324.7 - 24.163.317.340.3 -
+Zhangetal.[90] Domain 17.541.112.226.748.8 22.064.415.640.0 - encoder, which extracts features with a temporal dimension
+Ours 18.243.813.328.553.0 25.370.518.044.2 66.2
+from music audio, typically trained by self-supervised learning
+WSAC[89] Cross 12.020.6 8.2 14.4 - 17.325.612.018.8 - (SSL), such as MERT [6], MusicFM [93], and MuQ [94]. The
+Zhangetal.[90] Domain 13.224.8 9.3 17.1 - 18.233.712.423.0 52.1
+Ours 15.033.310.421.852.2 22.944.317.030.6 62.6 second is the sequence-wise encoder, which extracts features
+directly from the music to extract a fixed dimensional feature
+TABLE XVI: Ablation study on AudioCaps (in-domain) and (e.g., 512 or 1024 dimensions), typically trained by contrastive
+AudioCaps ⇒ Clotho (cross-domain) for our zero-shot AAC learning, such as Laion-CLAP [81], Microsoft-CLAP [95],
+model DRCap. PD donates Projection Decoding. and MuQ-MuLan [94]. For frame-wise encoder, the projector
+downsamples frame-wise features into 0.5hz, which is the final
+AudioCaps (%) AudioCaps⇒Clotho (%) input fed to LLM, for example, 10s of music corresponds to
+Main Components
+MT CD SP SD FS MT CD SP SD FS 5 tokens. For sequence-wise encoder, we do not downsample
+and feed directly into the LLM after a linear layer projection,
+Ours 25.5 70.5 18.0 44.2 66.2 15.0 33.3 10.4 21.8 52.2
+-w/oRAG 25.0 69.2 18.4 43.7 65.5 14.2 30.1 10.2 20.1 51.3 which means that the sequence-wise encoded features have
+-w/oLoRA 23.7 64.7 16.4 40.5 64.1 14.1 29.8 9.8 19.8 51.1 only 1 token. The training recipes and model checkpoints can
+-w/oPD 19.9 31.2 13.4 22.3 55.4 13.2 22.8 8.6 15.7 46.4 be found here11.
+c) Experiments: In Table XVII, we compare the effect
+of different music encoders on the music captioning task with
+WSAC [89] trains a text decoder using the prefix language
+existingmodels.NotethattheSLAM-LLMmodelsinthetable
+modeling paradigm conditioned on CLAP embeddings, while
+are all trained only on the small LP-MusicCaps-MC data. For
+Zhang et al. [90] crafts soft and hard prompts to bridge the
+the frame-wise encoder, MuQ is better than MusicFM and
+modality gap between audio and text embeddings of CLAP.
+MERT,whichisconsistentwiththebasicperformanceofthese
+As shown in Table XV, our model surpasses all competitive
+SSL models. For the sequence-wise encoder, surprisingly, even
+zero-shot audio captioning systems in in-domain scenarios by
+though the sequence-wise features have only 1 token, they
+a large margin and is comparable with other fully supervised
+generally work better than the frame-wise features. Among
+methods.Forcross-domainscenarios,itachievesstate-of-the-art
+them, MuQ-MuLan achieves the best performance in the four
+resultsacrossallmetrics,highlightingitsrobustdomain-transfer
+metricsBLEU,METEOR,ROUGE-SandBERT-S.Thismeans
+capability. Furthermore, we found that our model outperforms
+that models trained using contrastive learning, even with only
+other methods in terms of the FENSE [78] score in both two
+one embedding, are more suitable for music captioning tasks
+scenarios. We hypothesize that this advantage is due to its
+than encoders trained using SSL. We also note that although
+ability to utilize the semantically rich joint multi-modal space
+SLAM-LLM uses only a small amount of data from LP-
+of CLAP, which allows it to generate more refined captions.
+MusicCaps-MC, it achieves comparable results with models
+TableXVIshowsacomprehensiveablationstudyondifferent
+such as MusCaps [96], LP-MusicCaps [91], and MusiLingo
+core components of our zero-shot AAC model on both in-
+[92], which are trained using additional pre-training data.
+domain and cross-domain scenarios. The study explored the
+contribution of the retrieval-augmented generation (RAG), the
+C. Takeaways
+use of LoRA adapter, and the effectiveness of the projection
+decoding (PD). Results show that projection-based decoding Fromtheaboveexperiments,severalkeytakeawayscanhelp
+helps mitigate the modality gap, the LoRA enhances training guide future research and development of LLM-based audio
+efficiencyandquality,whiletheretrieval-augmentedgeneration and music tasks:
+can also boost model’s performance, especially in the cross- • LLM-based models outperform non-LLM baselines.
+domain scenario. Our explorations further advance this trend in AAC tasks,
+achieving SOTA results on both Clotho and AudioCaps.
+B. Music Captioning (MC) • Fine-tuned encoders matter. Audio encoders like EAT,
+when fine-tuned on classification tasks, consistently out-
+a) Datasets: We utilize the LP-MusicCaps-MC datasets
+perform pre-trained or less optimized counterparts.
+[91] for training, and conduct testing on the standard test set
+• Pre-training and PEFT enhance quality and efficiency.
+of LP-MusicCaps-MC. For all training, the music audio is
+Model pre-training combined with LoRA yields better
+sliced into 10-second clips. Since the raw audio of the LP-
+captions with lower training cost.
+MusicCaps-MSD dataset is difficult to access, we are only
+able to train our models on the LP-MusicCaps-MC dataset, 11https://github.com/X-LANCE/SLAM-LLM/tree/main/examples/mc
+which is a small subset of LP-MusicCaps dataset. However, musiccaps
+This work is licensed under a Creative Commons Attribution 4.0 License. For more information, see https://creativecommons.org/licenses/by/4.0/
+
+--- PAGE 12 ---
+This article has been accepted for publication in IEEE Journal of Selected Topics in Signal Processing. This is the author's version which has not been fully edited and
+content may change prior to final publication. Citation information: DOI 10.1109/JSTSP.2026.3653157
+JOURNALOFLATEXCLASSFILES,VOL.14,NO.8,AUGUST2021 12
+TABLE XVII: The results of music caption experiments, all
+[2] A.Awadalla,I.Gao,J.Gardner,J.Hessel,Y.Hanafy,W.Zhu,K.Marathe
+evaluated on the LP-MusicCaps-MC test set. The rows high- et al., “OpenFlamingo: An open-source framework for training large
+lighted in gray represent models pre-trained using additional autoregressive vision-language models,” CoRR, vol. abs/2308.01390,
+2023.
+or private data.
+[3] A. Radford, J. W. Kim, T. Xu, G. Brockman, C. McLeavey, and
+I.Sutskever,“Robustspeechrecognitionvialarge-scaleweaksupervision,”
+Model TrainDataset BLEUMETEORROUGE-SBERT-S inProc.ICML,2023.
+MusCaps Private 10.2 17.0 22.2 83.5 [4] W.-N.Hsu,B.Bolte,Y.-H.H.Tsai,K.Lakhotia,R.Salakhutdinov,and
+LP-MusicCaps MSD+MTT+MC 14.7 22.4 21.5 87.8 A.Mohamed,“HuBERT:Self-supervisedspeechrepresentationlearning
+MusiLingo MSD+MC 30.8 21.6 21.7 86.8
+bymaskedpredictionofhiddenunits,”inProc.TASLP,2021.
+EncoderFrame-wise [5] S.Chen,Y.Wu,C.Wang,S.Liu,D.Tompkins,Z.Chen,andF.Wei,
+MERT 22.2 11.6 16.8 86.3 “BEATs:Audiopre-trainingwithacoustictokenizers,”inProc.ICML,
+MusicFM MC 25.1 18.6 19.2 86.2
+2023.
+MuQ 27.0 19.2 19.1 86.8
+Ours [6] Y.Li,R.Yuan,G.Zhang,Y.Ma,X.Chen,H.Yin,C.Xiaoetal.,“MERT:
+EncoderSequence-wise
+acoustic music understanding model with large-scale self-supervised
+Laion-CLAP 25.9 19.6 20.9 86.6
+Microsoft-CLAP2023 MC 27.5 20.3 21.1 86.8 training,”inProc.ICLR. OpenReview.net,2024.
+MuQ-MuLan 27.9 20.5 21.1 86.9 [7] J.Li,D.Li,S.Savarese,andS.Hoi,“BLIP-2:Bootstrappinglanguage-
+image pre-training with frozen image encoders and large language
+models,”inProc.ICML,2023.
+[8] H.Touvron,T.Lavril,G.Izacard,X.Martinet,M.Lachaux,T.Lacroix,
+• RAG boost model’s performance. By enabling access B.Rozie`re,N.Goyal,E.Hambro,F.Azhar,A.Rodriguez,A.Joulin,
+to external knowledge for describing unseen soundscapes, E. Grave, and G. Lample, “LLaMA: Open and efficient foundation
+languagemodels,”CoRR,vol.abs/2302.13971,2023.
+RAG enhances model’s results.
+[9] H. Touvron, L. Martin, K. Stone, P. Albert, A. Almahairi, Y. Babaei,
+• Projection decoding narrows the modality gap. To N.Bashlykovetal.,“LLaMA2:Openfoundationandfine-tunedchat
+bridge the modality gap in CLAP, projection-based decod- models,”CoRR,vol.abs/2307.09288,2023.
+ing proves effective, while direct use of the audio encoder [10] W.-L. Chiang, Z. Li, Z. Lin, Y. Sheng, Z. Wu et al., “Vicuna: An
+open-source chatbot impressing GPT-4 with 90%* ChatGPT quality,”
+in zero-shot settings performs unsatisfactorily.
+https://vicuna.lmsys.org,2023.
+• Even a single token can be sufficient. In music [11] J. Bai, S. Bai, Y. Chu, Z. Cui, K. Dang, X. Deng, Y. Fan, W. Ge,
+captioning tasks, where information is relatively sparse, Y. Han, F. Huang et al., “Qwen technical report,” arXiv preprint
+arXiv:2309.16609,2023.
+a strong encoder (MuQ) can effectively condense the
+[12] metallama,“llama-recipes,”https://github.com/meta-llama/llama-recipes,
+relevantcontentintoasingletokenandconveythecontent 2024.
+to the LLM decoder. [13] R.Zhang,J.Han,C.Liu,P.Gao,A.Zhou,X.Hu,S.Yan,P.Lu,H.Li,
+andY.Qiao,“Llama-adapter:Efficientfine-tuningoflanguagemodels
+• Optimalprojectorchoicevariesbasedonthetasktype. withzero-initattention,”arXivpreprintarXiv:2303.16199,2023.
+Linear Projectors are preferred for tasks requiring strict [14] P.Gao,J.Han,R.Zhang,Z.Lin,S.Geng,A.Zhou,W.Zhang,P.Lu,
+monotonic alignment and temporal sequence preservation, C.He,X.Yueetal.,“LLaMA-Adapterv2:Parameter-efficientvisual
+instructionmodel,”inProc.ICLR,2024.
+such as ASR and VSR, while Q-Former bridges are more
+[15] A.Radford,J.W.Kim,C.Hallacy,A.Ramesh,G.Goh,S.Agarwal,
+effective for tasks demanding global semantic perception G.Sastry,A.Askell,P.Mishkin,J.Clarketal.,“Learningtransferable
+and cross-modal context awareness, such as SEC and visualmodelsfromnaturallanguagesupervision,”inProc.ICML. PmLR,
+2021,pp.8748–8763.
+AAC.
+[16] M.Oquab,T.Darcet,T.Moutakanni,H.V.Vo,M.Szafraniec,V.Khali-
+More detailed and technique-specific information can be found dov, P. Fernandez et al., “DINOv2: Learning robust visual features
+withoutsupervision,”TMLR,2024.
+in sub-tasks research [80], [97] of the SLAM-LLM series.
+[17] Y. Zheng, R. Zhang, J. Zhang, Y. Ye, Z. Luo, Z. Feng, and Y. Ma,
+“LlamaFactory:Unifiedefficientfine-tuningof100+languagemodels,”
+inProc.ACL,2024.
+VI. CONCLUSION
+[18] S.Diao,R.Pan,H.Dong,K.Shum,J.Zhang,W.Xiong,andT.Zhang,
+“LMFlow: An extensible toolkit for finetuning and inference of large
+SLAM-LLM presents a significant advancement in the field
+foundationmodels,”inProc.NAACL,2024,pp.116–127.
+of multimodal large language models by providing a modular, [19] D. Zhu, J. Chen, X. Shen, X. Li, and M. Elhoseiny, “MiniGPT-4:
+flexible, and open-source framework specifically tailored for Enhancingvision-languageunderstandingwithadvancedlargelanguage
+models,”inProc.ICLR,2024.
+speech, language, audio, and music processing. Through its
+[20] B.Zhou,Y.Hu,X.Weng,J.Jia,J.Luo,X.Liu,J.Wu,andL.Huang,
+encoder–projector–LLM architecture, SLAM-LLM enables “TinyLLaVA: A framework of small-scale large multimodal models,”
+efficient customization and deployment across a wide range CoRR,vol.abs/2402.14289,2024.
+[21] J.-B.Alayrac,J.Donahue,P.Luc,A.Miech,I.Barr,Y.Hasson,K.Lenc,
+of tasks including ASR, SEC, AAC, and many other tasks.
+A.Mensch,K.Millican,M.Reynoldsetal.,“Flamingo:avisuallanguage
+Experimental results demonstrate that recipes in SLAM-LLM modelforfew-shotlearning,”inProc.NeurIPS,2022.
+notonlyachievecompetitiveorstate-of-the-artperformanceon [22] S.Mangrulkar,S.Gugger,L.Debut,Y.Belkada,S.Paul,andB.Bossan,
+“Peft: State-of-the-art parameter-efficient fine-tuning methods,” https:
+several benchmarks but also give insights for the LLM-based
+//github.com/huggingface/peft,2022.
+audioprocessingcommunity.Byloweringtheentrybarrierand [23] Y.Zhao,A.Gu,R.Varma,L.Luo,C.-C.Huang,M.Xu,L.Wrightetal.,
+promoting community collaboration, SLAM-LLM is poised to “PyTorchFSDP:Experiencesonscalingfullyshardeddataparallel,”Proc.
+VLDBEndow.,vol.16,no.12,pp.3848–3860,2023.
+accelerate research and innovation in audio-language modeling
+[24] J.Rasley,S.Rajbhandari,O.Ruwase,andY.He,“Deepspeed:System
+and unlock new possibilities in multimodal AI.
+optimizationsenabletrainingdeeplearningmodelswithover100billion
+parameters,”inProc.SIGKDD,2020,pp.3505–3506.
+[25] L.Dou,Q.Liu,G.Zeng,J.Guo,J.Zhou,X.Mao,Z.Jin,W.Lu,and
+REFERENCES M.Lin,“Sailor:Openlanguagemodelsforsouth-EastAsia,”inProc.
+EMNLP,2024,pp.424–435.
+[1] H.Liu,C.Li,Q.Wu,andY.J.Lee,“Visualinstructiontuning,”inProc. [26] Y. Yang, Z. Song, J. Zhuo, M. Cui, J. Li, B. Yang, Y. Du et al.,
+NeurIPS,2023. “Gigaspeech2:Anevolving,large-scaleandmulti-domainasrcorpus
+This work is licensed under a Creative Commons Attribution 4.0 License. For more information, see https://creativecommons.org/licenses/by/4.0/
+
+--- PAGE 13 ---
+This article has been accepted for publication in IEEE Journal of Selected Topics in Signal Processing. This is the author's version which has not been fully edited and
+content may change prior to final publication. Citation information: DOI 10.1109/JSTSP.2026.3653157
+JOURNALOFLATEXCLASSFILES,VOL.14,NO.8,AUGUST2021 13
+forlow-resourcelanguageswithautomatedcrawling,transcriptionand [51] T.Afouras,J.S.Chung,andA.Zisserman,“LRS3-TED:alarge-scale
+refinement,”inProc.ACL,Vienna,2025. datasetforvisualspeechrecognition,”arXivpreprint,2018.
+[27] Z. Zhang, L. Zhou, C. Wang, S. Chen, Y. Wu, S. Liu, Z. Chen, [52] B. Shi, W.-N. Hsu, K. Lakhotia, and A. Mohamed, “Learning audio-
+Y.Liu,H.Wang,J.Lietal.,“Speakforeignlanguageswithyourown visualspeechrepresentationbymaskedmultimodalclusterprediction,”
+voice:Cross-lingualneuralcodeclanguagemodeling,”arXivpreprint inProc.ICLR,2022.
+arXiv:2303.03926,2023. [53] J.S.Chung,A.Nagrani,andA.Zisserman,“Voxceleb2:Deepspeaker
+[28] W. Chen, Z. Ma, R. Yan, Y. Liang, X. Li, R. Xu, Z. Niu, Y. Zhu, recognition,”inProc.Interspeech,2018,pp.1086–1090.
+Y.Yang,Z.Liuetal.,“Slam-omni:Timbre-controllablevoiceinteraction [54] C. Wang, A. Wu, J. Gu, and J. Pino, “CoVoST 2 and massively
+system with single-stage training,” in Findings of the Association for multilingualspeechtranslation,”inProc.Interspeech,2021,pp.2247–
+ComputationalLinguistics:ACL2025,2025,pp.2262–2282. 2251.
+[29] S.Chen,C.Wang,Z.Chen,Y.Wu,S.Liu,Z.Chen,J.Li,N.Kanda, [55] M. A. Di Gangi, R. Cattoni, L. Bentivogli, M. Negri, and M. Turchi,
+T.Yoshioka,X.Xiaoetal.,“WavLM:Large-scaleself-supervisedpre- “Must-c:amultilingualspeechtranslationcorpus,”inProc.NAACL,2019,
+trainingforfullstackspeechprocessing,”inProc.JSTSP,2022. pp.2012–2017.
+[30] V.Panayotov,G.Chen,D.Povey,andS.Khudanpur,“Librispeech:An [56] M. R. Costa-jussa`, J. Cross, O. C¸elebi, M. Elbayad, K. Heafield,
+ASRcorpusbasedonpublicdomainaudiobooks,”inProc.ofICASSP, K. Heffernan, E. Kalbassi, J. Lam, D. Licht, J. Maillard et al., “No
+2015. languageleftbehind:Scalinghuman-centeredmachinetranslation,”arXiv
+[31] J. Kahn, M. Rivie`re, W. Zheng, E. Kharitonov, Q. Xu, P.-E. Mazare´, preprintarXiv:2207.04672,2022.
+J.Karadayi,V.Liptchinsky,R.Collobert,C.Fuegenetal.,“Libri-light: [57] C.Wang,M.Liao,Z.Huang,andJ.Zhang,“BLSP-KD:Bootstrapping
+Abenchmarkforasrwithlimitedornosupervision,”inProc.ICASSP, language-speechpre-trainingviaknowledgedistillation,”arXivpreprint
+2020. arXiv:2405.19041,2024.
+[32] C. Wang, M. Riviere, A. Lee, A. Wu, C. Talnikar, D. Haziza, [58] C. Tang, W. Yu, G. Sun, X. Chen, T. Tan, W. Li, L. Lu, Z. Ma, and
+M. Williamson, J. Pino, and E. Dupoux, “Voxpopuli: A large-scale C. Zhang, “SALMONN: Towards generic hearing abilities for large
+multilingualspeechcorpusforrepresentationlearning,semi-supervised languagemodels,”inProc.ICLR,2024.
+learningandinterpretation,”inProc.ACL,2021. [59] L.Barrault,Y.-A.Chung,M.C.Meglioli,D.Dale,N.Dong,M.Dup-
+[33] G. Chen, S. Chai, G. Wang, J. Du, W.-Q. Zhang, C. Weng, D. Su, penthaler, P.-A. Duquenne, B. Ellis, H. Elsahar, J. Haaheim et al.,
+D.Povey,J.Trmal,J.Zhangetal.,“Gigaspeech:Anevolving,multi- “Seamless: Multilingual expressive and streaming speech translation,”
+domainASRcorpuswith10,000hoursoftranscribedaudio,”inProc. arXivpreprintarXiv:2312.05187,2023.
+Interspeech,2021.
+[60] Y. Chu, J. Xu, Q. Yang, H. Wei, X. Wei, Z. Guo, Y. Leng, Y. Lv,
+[34] P.Zhang,G.Zeng,T.Wang,andW.Lu,“TinyLLaMA:Anopen-source J. He, J. Lin et al., “Qwen2-audio technical report,” arXiv preprint
+smalllanguagemodel,”arXivpreprintarXiv:2401.02385,2024.
+arXiv:2407.10759,2024.
+[35] W.Han,Z.Zhang,Y.Zhang,J.Yu,C.-C.Chiu,J.Qin,A.Gulati,R.Pang,
+[61] Y.Xu,H.Chen,J.Yu,Q.Huang,Z.Wu,S.-X.Zhang,G.Li,Y.Luo,
+andY.Wu,“Contextnet:Improvingconvolutionalneuralnetworksfor
+and R. Gu, “SECap: Speech emotion captioning with large language
+automaticspeechrecognitionwithglobalcontext,”inProc.Interspeech,
+model,”Proc.AAAI,2024.
+2020,pp.3610–3614.
+[62] H.Yan,Y.Zhu,K.Zheng,B.Liu,H.Cao,D.Jiang,andL.Xu,“Talk
+[36] A. Gulati, J. Qin, C.-C. Chiu, N. Parmar, Y. Zhang, J. Yu, W. Han,
+withhuman-likeagents:Empatheticdialoguethroughperceptibleacoustic
+S.Wang,Z.Zhang,Y.Wuetal.,“Conformer:Convolution-augmented
+receptionandreaction,”inProc.ACL,2024,pp.15009–15022.
+Transformerforspeechrecognition,”inProc.Interspeech,2020.
+[63] Y.Sun,W.Chu,H.Zhou,K.Wang,andH.Koike,“AVI-Talking:Learning
+[37] Y.Peng,S.Dalmia,I.Lane,andS.Watanabe,“Branchformer:Parallel
+audio-visualinstructionsforexpressive3dtalkingfacegeneration,”IEEE
+mlp-attentionarchitecturestocapturelocalandglobalcontextforspeech
+Access,2024.
+recognitionandunderstanding,”inProc.ICML,2022.
+[64] Z.Ma,Z.Zheng,J.Ye,J.Li,Z.Gao,S.Zhang,andX.Chen,“emo-
+[38] Z.Yao,L.Guo,X.Yang,W.Kang,F.Kuang,Y.Yang,Z.Jin,L.Lin,
+tion2vec:Self-supervisedpre-trainingforspeechemotionrepresentation,”
+and D. Povey, “Zipformer: A faster and better encoder for automatic
+Proc.ACL,2024.
+speechrecognition,”inProc.ICLR,2024.
+[65] Y.Cui,W.Che,T.Liu,B.Qin,andZ.Yang,“Pre-trainingwithwhole
+[39] A. Baevski, Y. Zhou, A. Mohamed, and M. Auli, “wav2vec 2.0: A
+wordmaskingforchinesebert,”Proc.TASLP,2021.
+framework for self-supervised learning of speech representations,” in
+[66] Z. Ma, G. Yang, Y. Yang, Z. Gao, J. Wang, Z. Du, F. Yu, Q. Chen,
+Proc.NeurIPS,2020.
+S.Zheng,S.Zhangetal.,“Anembarrassinglysimpleapproachforllm
+[40] Y.Peng,J.Tian,W.Chen,S.Arora,B.Yan,Y.Sudo,M.Shakeel,K.Choi,
+withstrongasrcapacity,”arXivpreprintarXiv:2402.08846,2024.
+J.Shi,X.Chang,J.weonJung,andS.Watanabe,“OWSMv3.1:Better
+[67] G.Yang,Z.Ma,F.Yu,Z.Gao,S.Zhang,andX.Chen,“MaLa-ASR:
+andfasteropenwhisper-stylespeechmodelsbasedone-branchformer,”
+Multimedia-assistedllm-basedasr,”Proc.Interspeech,2024.
+inProc.Interspeech,2024,pp.352–356.
+[68] K.Drossos,S.Lipping,andT.Virtanen,“Clotho:Anaudiocaptioning
+[41] X.Shi,Q.Feng,andL.Xie,“TheASRU2019Mandarin-Englishcode-
+dataset,”inProc.ICASSP. IEEE,2020,pp.736–740.
+switchingspeechrecognitionchallenge:Opendatasets,tracks,methods
+andresults,”arXivpreprintarXiv:2007.05916,2020. [69] C. D. Kim, B. Kim, H. Lee, and G. Kim, “Audiocaps: Generating
+[42] H. Wang, F. Yu, X. Shi, Y. Wang, and S. Zhang, “SlideSpeech: A captionsforaudiosinthewild,”inProc.NAACL,2019,pp.119–132.
+large-scaleslide-enrichedaudio-visualcorpus,”inProc.ICASPP,2024. [70] X.Mei,C.Meng,H.Liu,Q.Kong,T.Ko,C.Zhao,M.D.Plumbley,
+[43] F.Yu,H.Wang,X.Shi,andS.Zhang,“LCB-NET:Long-contextbiasing Y.Zou,andW.Wang,“WavCaps:Achatgpt-assistedweakly-labelled
+foraudio-visualspeechrecognition,”inProc.ICASPP,2024. audiocaptioningdatasetforaudio-languagemultimodalresearch,”arXiv
+[44] D. Le, M. Jain, G. Keren, S. Kim, Y. Shi, J. Mahadeokar, J. Chan preprintarXiv:2303.17395,2023.
+et al., “Contextualized streaming end-to-end speech recognition with [71] I.Mart´ın-Morato´ andA.Mesaros,“Whatisthegroundtruth?reliability
+trie-baseddeepbiasingandshallowfusion,”inProc.Interspeech,2021, ofmulti-annotatordataforaudiotagging,”inProc.EUSIPCO,2021.
+pp.1772–1776. [72] J. F. Gemmeke, D. P. Ellis, D. Freedman, A. Jansen, W. Lawrence,
+[45] K. Huang, A. Zhang, Z. Yang, P. Guo, B. Mu, T. Xu, and L. Xie, R.C.Moore,M.Plakal,andM.Ritter,“Audioset:Anontologyand
+“Contextualizedend-to-endspeechrecognitionwithcontextualphrase human-labeleddatasetforaudioevents,”inProc.ICASSP. IEEE,2017,
+predictionnetwork,”inProc.Interspeech,2023,pp.4933–4937. pp.776–780.
+[46] Y.Sudo,M.Shakeel,Y.Fukumoto,Y.Peng,andS.Watanabe,“Contex- [73] R. Sennrich, B. Haddow, and A. Birch, “Improving neural machine
+tualizedautomaticspeechrecognitionwithattention-basedbiasphrase translation models with monolingual data,” in Proc. ACL, 2016, pp.
+boostedbeamsearch,”inProc.ICASSP,2024,pp.10896–10900. 86–96.
+[47] G.Sun,C.Zhang,andP.Woodland,“Tree-constrainedpointergenerator [74] S. Banerjee and A. Lavie, “METEOR: An automatic metric for mt
+withgraphneuralnetworkencodingsforcontextualspeechrecognition,” evaluationwithimprovedcorrelationwithhumanjudgments,”inProc.
+inProc.Interspeech,2022,pp.2043–2047. ACL,2005.
+[48] J. Tang, K. Kim, S. Shon, F. Wu, and P. Sridhar, “Improving ASR [75] R.Vedantam,C.LawrenceZitnick,andD.Parikh,“CIDEr:Consensus-
+contextualbiasingwithguidedattention,”inProc.ICASSP,2024. basedimagedescriptionevaluation,”inProc.CVPR,2015.
+[49] H. Futami, E. Tsunoo, Y. Kashiwagi, H. Ogawa, S. Arora, and [76] P. Anderson, B. Fernando, M. Johnson et al., “SPICE: Semantic
+S.Watanabe,“Phoneme-awareencodingforprefix-tree-basedcontextual propositionalimagecaptionevaluation,”inProc.ECCV,2016.
+ASR,”inProc.ICASSP,2024. [77] S.Liu,Z.Zhu,N.Ye,S.Guadarrama,andK.Murphy,“Improvedimage
+[50] G.Yang,Z.Ma,Z.Gao,S.Zhang,andX.Chen,“CTC-AssistedLLM- captioningviapolicygradientoptimizationofspider,”inProc.ICCV,
+BasedContextualASR,”Proc.SLT,2024. 2017.
+This work is licensed under a Creative Commons Attribution 4.0 License. For more information, see https://creativecommons.org/licenses/by/4.0/
+
+--- PAGE 14 ---
+This article has been accepted for publication in IEEE Journal of Selected Topics in Signal Processing. This is the author's version which has not been fully edited and
+content may change prior to final publication. Citation information: DOI 10.1109/JSTSP.2026.3653157
+JOURNALOFLATEXCLASSFILES,VOL.14,NO.8,AUGUST2021 14
+[78] Z.Zhou,Z.Zhang,X.Xu,Z.Xie,M.Wu,andK.Q.Zhu,“Canaudio
+captionsbeevaluatedwithimagecaptionmetrics?”inProc.ICASSP,
+2022.
+[79] W.Chen,Y.Liang,Z.Ma,Z.Zheng,andX.Chen,“EAT:Self-supervised
+pre-trainingwithefficientaudiotransformer,”inProc.IJCAI,2024.
+[80] W. Chen, Z. Ma, X. Li, X. Xu, Y. Liang, Z. Zheng, K. Yu, and
+X.Chen,“SLAM-AAC:Enhancingaudiocaptioningwithparaphrasing
+augmentationandclap-refinethroughllms,”inProc.ICASSP,2025,pp.
+1–5.
+[81] Y.Wu,K.Chen,T.Zhang,Y.Hui,T.Berg-Kirkpatrick,andS.Dubnov,
+“Large-scalecontrastivelanguage-audiopretrainingwithfeaturefusion
+andkeyword-to-captionaugmentation,”inProc.ICASSP,2023.
+[82] E.J.Hu,Y.Shen,P.Wallis,Z.Allen-Zhu,Y.Li,S.Wang,L.Wang,
+andW.Chen,“LoRA:Low-rankadaptationoflargelanguagemodels,”
+inProc.ICLR,2022.
+[83] W.Li,L.Zhu,L.Wen,andY.Yang,“DeCap:DecodingCLIPlatents
+forzero-shotcaptioningviatext-onlytraining,”inProc.ICLR,2023.
+[84] J.Kim,J.Jung,J.Lee,andS.H.Woo,“EnCLAP:Combiningneural
+audio codec and audio-text joint embedding for automated audio
+captioning,”inProc.ICASSP,2024.
+[85] S.-L.Wu,X.Chang,G.Wichern,J.-w.Jung,F.Germain,J.LeRoux,and
+S.Watanabe,“BEATs-basedaudiocaptioningmodelwithINSTRUCTOR
+embedding supervision and ChatGPT mix-up,” Tech. Rep., DCASE
+Challenge,2023.
+[86] C. Tang, W. Yu, G. Sun, X. Chen, T. Tan, W. Li, L. Lu, Z. Ma, and
+C. Zhang, “Extending large language models for speech and audio
+captioning,”inProc.ICASSP,2024.
+[87] J. Liu, G. Li, J. Zhang, H. Dinkel, Y. Wang, Z. Yan, Y. Wang, and
+B. Wang, “Enhancing automated audio captioning via large language
+modelswithoptimizedaudioencoding,”inProc.Interspeech,2024,pp.
+1135–1139.
+[88] S.Deshmukh,R.Singh,andB.Raj,“Domainadaptationforcontrastive
+audio-languagemodels,”inProc.Interspeech,2024,pp.1680–1684.
+[89] T. Kouzelis and V. Katsouros, “Weakly-supervised automated audio
+captioning via text only training,” arXiv preprint arXiv:2309.12242,
+2023.
+[90] Y. Zhang, X. Xu, R. Du, H. Liu, Y. Dong, Z.-H. Tan, W. Wang, and
+Z.Ma,“Zero-shotaudiocaptioningusingsoftandhardprompts,”IEEE
+TASLP,vol.33,pp.2045–2058,2025.
+[91] S.Doh,K.Choi,J.Lee,andJ.Nam,“Lp-musiccaps:Llm-basedpseudo
+musiccaptioning,”arXivpreprintarXiv:2307.16372,2023.
+[92] Z. Deng, Y. Ma, Y. Liu, R. Guo, G. Zhang, W. Chen, W. Huang,
+andE.Benetos,“MusiLingo:Bridgingmusicandtextwithpre-trained
+languagemodelsformusiccaptioningandqueryresponse,”inFindings
+ofNAACL,2024,pp.3643–3655.
+[93] M. Won, Y.-N. Hung, and D. Le, “A foundation model for music
+informatics,”inProc.ICASSP. IEEE,2024,pp.1226–1230.
+[94] H.Zhu,Y.Zhou,H.Chen,J.Yu,Z.Ma,R.Gu,Y.Luo,W.Tan,and
+X.Chen,“MuQ:Self-supervisedmusicrepresentationlearningwithmel
+residualvectorquantization,”CoRR,vol.abs/2501.01108,2025.
+[95] B.Elizalde,S.Deshmukh,M.AlIsmail,andH.Wang,“Claplearning
+audio concepts from natural language supervision,” in Proc. ICASSP,
+2023.
+[96] I.Manco,E.Benetos,E.Quinton,andG.Fazekas,“Muscaps:Generating
+captionsformusicaudio,”inProc.IJCNN. IEEE,2021,pp.1–8.
+[97] X.Li,W.Chen,Z.Ma,X.Xu,Y.Liang,Z.Zheng,Q.Kong,andX.Chen,
+“Drcap:Decodingclaplatentswithretrieval-augmentedgenerationfor
+zero-shotaudiocaptioning,”inProc.ICASSP,2025,pp.1–5.
+This work is licensed under a Creative Commons Attribution 4.0 License. For more information, see https://creativecommons.org/licenses/by/4.0/
